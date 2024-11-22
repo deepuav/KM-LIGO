@@ -86,6 +86,10 @@ roslaunch genz_icp odometry.launch topic:=<topic_name>
 rosbag play <rosbag_file_name>.bag
 ```
 
+Check out the tuning guide for the parameters of GenZ-ICP at this [link][tuning_guide_link]
+
+[tuning_guide_link]: https://github.com/cocel-postech/genz-icp/blob/master/ros/config/parameter_tuning_guide.md
+
 ### ROS2
 
 #### How to build
@@ -114,3 +118,5 @@ and then,
 ```sh
 ros2 bag play <rosbag_file_name>.mcap
 ```
+
+Check out the tuning guide for the parameters of GenZ-ICP at this [link][tuning_guide_link]
