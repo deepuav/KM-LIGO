@@ -134,10 +134,10 @@ If you use our codes, please cite our paper ([arXiv][arXivLink], [IEEE *Xplore*]
   author={Lee, Daehan and Lim, Hyungtae and Han, Soohee},
   journal={IEEE Robotics and Automation Letters (RA-L)}, 
   title={{GenZ-ICP: Generalizable and Degeneracy-Robust LiDAR Odometry Using an Adaptive Weighting}}, 
-  year={2024},
-  volume={},
-  number={},
-  pages={1-8},
+  year={2025},
+  volume={10},
+  number={1},
+  pages={152-159},
   keywords={Localization;Mapping;SLAM},
   doi={10.1109/LRA.2024.3498779}
 }
