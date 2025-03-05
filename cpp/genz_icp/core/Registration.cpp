@@ -206,13 +206,17 @@ std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector
             std::cout.flush();
         };
 
-        final_planar_points = src_planar;
-        final_non_planar_points = src_non_planar;
-
         // Termination criteria
         if (dx.norm() < convergence_criterion_){
             VisualizeStatus(planar_count, non_planar_count, alpha);
+            final_planar_points = src_planar;
+            final_non_planar_points = src_non_planar;
             break;
+        }
+        else if (j == max_num_iterations_ - 1){ // Only for visualization
+            VisualizeStatus(planar_count, non_planar_count, alpha);
+            final_planar_points = src_planar;
+            final_non_planar_points = src_non_planar;
         }
     }
 
