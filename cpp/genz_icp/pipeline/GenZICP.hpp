@@ -42,8 +42,7 @@ struct GenZConfig {
 
     // voxelize params
     double voxel_size = 0.25;
-    int max_points_per_voxelized_scan = 2000;
-    int min_points_per_voxelized_scan = 1800;
+    int desired_num_voxelized_points = 2000;
 
     // th parms
     double min_motion_th = 0.1;

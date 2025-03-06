@@ -58,18 +58,14 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     // Preprocess the input cloud
     const auto &cropped_frame = Preprocess(frame, config_.max_range, config_.min_range);
 
-    static double voxel_size = config_.voxel_size;
+    // Adapt voxel size based on LOCUS 2.0's adaptive voxel grid filter
+    static double voxel_size = config_.voxel_size; // Initial voxel size
+    const auto source_tmp = genz_icp::VoxelDownsample(cropped_frame, voxel_size);
+    double adaptive_voxel_size = genz_icp::Clamp(voxel_size * static_cast<double>(source_tmp.size()) / static_cast<double>(config_.desired_num_voxelized_points), 0.02, 1.0);
 
-    // Voxelize
-    const auto &[source, frame_downsample] = Voxelize(cropped_frame, voxel_size);
-
-    // Adapt voxel size
-    if (static_cast<int>(source.size()) > config_.max_points_per_voxelized_scan){
-        voxel_size += 0.01;
-    }
-    else if (static_cast<int>(source.size()) < config_.min_points_per_voxelized_scan){
-        voxel_size -= 0.01;
-    }
+    // Re-voxelize using the adaptive voxel size
+    const auto &[source, frame_downsample] = Voxelize(cropped_frame, adaptive_voxel_size);
+    voxel_size = adaptive_voxel_size; // Save for the next frame
 
     // Get motion prediction and adaptive_threshold
     const double sigma = GetAdaptiveThreshold();
@@ -92,10 +88,9 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     return {planar_points, non_planar_points};
 }
 
-GenZICP::Vector3dVectorTuple GenZICP::Voxelize(const std::vector<Eigen::Vector3d> &frame, double voxel_size) const {
-    //const auto voxel_size = config_.voxel_size;
-    const auto frame_downsample = genz_icp::VoxelDownsample(frame, voxel_size * 0.5); // localmap update
-    const auto source = genz_icp::VoxelDownsample(frame_downsample, voxel_size * 1.5); // registration
+GenZICP::Vector3dVectorTuple GenZICP::Voxelize(const std::vector<Eigen::Vector3d> &frame, double adaptive_voxel_size) const {
+    const auto frame_downsample = genz_icp::VoxelDownsample(frame, std::max(adaptive_voxel_size * 0.5, 0.02)); // localmap update
+    const auto source = genz_icp::VoxelDownsample(frame_downsample, adaptive_voxel_size * 1.0); // registration
     return {source, frame_downsample};
 }
 

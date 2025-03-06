@@ -66,8 +66,7 @@ OdometryServer::OdometryServer(const rclcpp::NodeOptions &options)
     config_.map_cleanup_radius = declare_parameter<double>("map_cleanup_radius", config_.map_cleanup_radius);
     config_.planarity_threshold = declare_parameter<double>("planarity_threshold", config_.planarity_threshold);
     config_.max_points_per_voxel = declare_parameter<int>("max_points_per_voxel", config_.max_points_per_voxel);
-    config_.max_points_per_voxelized_scan = declare_parameter<int>("max_points_per_voxelized_scan", config_.max_points_per_voxelized_scan);
-    config_.min_points_per_voxelized_scan = declare_parameter<int>("min_points_per_voxelized_scan", config_.min_points_per_voxelized_scan);
+    config_.desired_num_voxelized_points = declare_parameter<int>("desired_num_voxelized_points", config_.desired_num_voxelized_points);
     config_.max_num_iterations = declare_parameter<int>("max_num_iterations", config_.max_num_iterations);
     config_.convergence_criterion = declare_parameter<double>("convergence_criterion", config_.convergence_criterion);
     config_.initial_threshold = declare_parameter<double>("initial_threshold", config_.initial_threshold);

@@ -129,4 +129,8 @@ std::vector<Eigen::Vector3d> CorrectKITTIScan(const std::vector<Eigen::Vector3d>
     });
     return corrected_frame;
 }
+
+double Clamp(double value, double min, double max) {
+    return std::max(min, std::min(max, value));
+}
 }  // namespace genz_icp

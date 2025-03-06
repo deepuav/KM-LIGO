@@ -47,4 +47,5 @@ std::vector<Eigen::Vector3d> VoxelDownsampleForMap(const std::vector<Eigen::Vect
 
 std::vector<Eigen::Vector3d> VoxelDownsampleForScan(const std::vector<Eigen::Vector3d> &frame,
                                              double voxel_size);
+double Clamp(double value, double min, double max);
 }  // namespace genz_icp

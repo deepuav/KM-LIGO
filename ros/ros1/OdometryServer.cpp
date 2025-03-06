@@ -63,8 +63,7 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     pnh_.param("map_cleanup_radius", config_.map_cleanup_radius, config_.max_range);
     pnh_.param("planarity_threshold", config_.planarity_threshold, config_.planarity_threshold);
     pnh_.param("max_points_per_voxel", config_.max_points_per_voxel, config_.max_points_per_voxel);
-    pnh_.param("max_points_per_voxelized_scan", config_.max_points_per_voxelized_scan, config_.max_points_per_voxelized_scan);
-    pnh_.param("min_points_per_voxelized_scan", config_.min_points_per_voxelized_scan, config_.min_points_per_voxelized_scan);
+    pnh_.param("desired_num_voxelized_points", config_.desired_num_voxelized_points, config_.desired_num_voxelized_points);
     pnh_.param("initial_threshold", config_.initial_threshold, config_.initial_threshold);
     pnh_.param("min_motion_th", config_.min_motion_th, config_.min_motion_th);
     pnh_.param("max_num_iterations", config_.max_num_iterations, config_.max_num_iterations);
