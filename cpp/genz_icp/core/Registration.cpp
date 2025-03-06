@@ -113,7 +113,7 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildLinearSystem(
         for (size_t i = r.begin(); i < r.end(); ++i) {
             if (i < src_planar.size()) { // Point-to-Plane
                 const auto &[J_planar, r_planar] = compute_jacobian_and_residual_planar(i);
-                double w_planar = Weight(r_planar);
+                double w_planar = Weight(r_planar * r_planar);
                 JTJ_private.noalias() += alpha * J_planar.transpose() * w_planar * J_planar;
                 JTr_private.noalias() += alpha * J_planar.transpose() * w_planar * r_planar;
             } else { // Point-to-Point
