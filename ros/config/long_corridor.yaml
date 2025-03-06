@@ -6,8 +6,7 @@ max_range: 100.0
 min_range: 0.5
 voxel_size: 0.25
 map_cleanup_radius: 300
-max_points_per_voxelized_scan: 1800
-min_points_per_voxelized_scan: 1500
+desired_num_voxelized_points: 2000
 planarity_threshold: 0.17
 max_points_per_voxel: 1
 initial_threshold: 2.0

@@ -5,8 +5,7 @@ deskew: false
 max_range: 120.0
 min_range: 0.5
 voxel_size: 0.6
-max_points_per_voxelized_scan: 2200
-min_points_per_voxelized_scan: 1500
+desired_num_voxelized_points: 3000
 planarity_threshold: 0.15
 max_points_per_voxel: 3
 initial_threshold: 2.0
