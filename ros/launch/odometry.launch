@@ -20,7 +20,7 @@
   <arg name="max_points_per_voxel" default="1"/>
   <arg name="initial_threshold" default="2.0"/>
   <arg name="min_motion_th" default="0.1"/>
-  <arg name="max_num_iterations" default="50"/>
+  <arg name="max_num_iterations" default="100"/>
   <arg name="convergence_criterion" default="0.0001"/>
 
   <!-- Odometry node -->
