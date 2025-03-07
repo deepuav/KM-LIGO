@@ -23,6 +23,16 @@ This section provides tips for tuning GenZ-ICP's parameters.
 + Conversely, in wide **outdoor** environments, a larger **_max_points_per_voxel_** increases the number of neighboring points, resulting in more reliable local surface variation values.
   Therefore, in outdoor environments, lowering the planarity_threshold is recommended to achieve stricter planarity classification.
 
+### `desired_num_voxelized_points`
+: Desired number of points in a voxelized scan (default: `2000`)
++ If this value is too large, it can cause CPU overload, while a value too small may lead to inaccurate results.
++ This value should be set proportionally to the **scale** of the environment: **larger** values for wide **outdoor** spaces and **smaller** values for narrow **indoor** spaces.
++ Based on this value, the voxel filter size is adaptively adjusted to perform **adaptive voxelization**.
+
+### `max_num_iterations`
+: Maximum number of iterations for the ICP loop (default: `100`)
++ Higher **_max_num_iterations_** can improve accuracy but increases CPU load.
+
 ## :zap: Minor Parameters
 
 ### `deskew`
@@ -37,20 +47,3 @@ This section provides tips for tuning GenZ-ICP's parameters.
 + The default value for **_map_cleanup_radius_** is equal to the LiDAR's **_max_range_**.
 + In spaces larger than the LiDAR's **_max_range_**, where the platform revisits previously visited areas, it is recommended to increase the **_map_cleanup_radius_**.
 + However, excessively high values can consume a lot of memory and may lead to inaccurate results. Therefore, it is recommended to keep the value below `300`.
-
-### `max_points_per_voxelized_scan`
-: Maximum required points in a voxelized scan (default: `1500`)
-+ If the number of points in the voxelized LiDAR input is too large, it can cause CPU overload during the normal estimation process.
-+ This issue primarily occurs when transitioning from narrow indoor spaces to wide outdoor spaces.
-+ Therefore, if the number of points in the voxelized LiDAR input exceeds **_max_points_per_voxelized_scan_**, GenZ-ICP automatically adjusts the number of downsampled points by incrementally increasing the downsampling leaf_size until the count falls below the **_max_points_per_voxelized_scan_**.
-
-### `min_points_per_voxelized_scan`
-: Minimum required points in a voxelized scan (default: `1300`)
-+ Conversely, if the number of points in the voxelized LiDAR input is too small, it may lead to inaccurate results.
-+ This typically occurs when transitioning from wide spaces to narrow spaces.
-+ Therefore, if the number of points in the voxelized LiDAR input is less than **_min_points_per_voxelized_scan_**, GenZ-ICP automatically adjusts the number of downsampled points by incrementally decreasing the downsampling leaf size until the count exceeds the **_min_points_per_voxelized_scan_**.
-
-### `max_num_iterations`
-: Maximum number of iterations for the ICP loop (default: `50`)
-+ Higher **_max_num_iterations_** can improve accuracy but increases CPU load.
-  
