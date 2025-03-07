@@ -75,6 +75,19 @@ The bagfile for the **Corridor1** and **Corridor2** sequences of Ground-Challeng
 
 [ground_challenge_link]: https://github.com/sjtuyinjie/Ground-Challenge
 
+4. **short experiment** sequence of Newer-College dataset
+
+```sh
+roslaunch genz_icp odometry.launch topic:=/os1_cloud_node/points config_file:=outdoor.yaml
+```
+```sh
+rosbag play rooster_2020-03-10-10-36-30_0.bag && rosbag play rooster_2020-03-10-10-39-18_1.bag && rosbag play rooster_2020-03-10-10-42-05_2.bag && rosbag play rooster_2020-03-10-10-44-52_3.bag && rosbag play rooster_2020-03-10-10-47-39_4.bag && rosbag play rooster_2020-03-10-10-50-26_5.bag && rosbag play rooster_2020-03-10-10-53-13_6.bag && rosbag play rooster_2020-03-10-10-56-00_7.bag && rosbag play rooster_2020-03-10-10-58-47_8.bag && rosbag play rooster_2020-03-10-11-01-34_9.bag
+```
+
+The bagfile for the **short experiment** sequence of Newer-College dataset can be downloaded from [here][newer_college_link]
+
+[newer_college_link]: https://ori-drs.github.io/newer-college-dataset/
+
 #### Option 2
 
 Otherwise, the only required argument to provide is the **topic name**:
