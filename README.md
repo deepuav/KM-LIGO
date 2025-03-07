@@ -1,7 +1,6 @@
 <div align="center">
     <h1>GenZ-ICP</h1>
     <a href="https://github.com/cocel-postech/genz-icp/tree/master/cpp/genz_icp"><img src="https://img.shields.io/badge/-C++-blue?logo=cplusplus" /></a>
-    <a href=""><img src="https://img.shields.io/badge/Python-3670A0?logo=python&logoColor=ffdd54" /></a>
     <a href="https://github.com/cocel-postech/genz-icp/tree/master/ros"><img src="https://img.shields.io/badge/ROS1-Noetic-blue" /></a>
     <a href="https://github.com/cocel-postech/genz-icp/tree/master/ros"><img src="https://img.shields.io/badge/ROS2-Humble-blue" /></a>
     <a href=""><img src="https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black" /></a>
@@ -106,12 +105,10 @@ ros2 bag play <rosbag_file_name>.mcap
 
 Check out the tuning guide for the parameters of GenZ-ICP at this [link][tuning_guide_link]
 
-### Python
-
-Will be available in an upcoming update
-
 ## :pushpin: Todo list
+- [ ] Code optimization to reduce CPU load
 - [ ] Python support for GenZ-ICP
+
 
 ## :pencil: Citation
 
@@ -140,7 +137,6 @@ Please refer to [KISS-ICP][kissicplink] for more information
 
 [nacholink]: https://github.com/nachovizzo
 [kissicplink]: https://github.com/PRBonn/kiss-icp
-
 
 ## :mailbox: Contact information
 
