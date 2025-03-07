@@ -61,7 +61,7 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     // Adapt voxel size based on LOCUS 2.0's adaptive voxel grid filter
     static double voxel_size = config_.voxel_size; // Initial voxel size
     const auto source_tmp = genz_icp::VoxelDownsample(cropped_frame, voxel_size);
-    double adaptive_voxel_size = genz_icp::Clamp(voxel_size * static_cast<double>(source_tmp.size()) / static_cast<double>(config_.desired_num_voxelized_points), 0.02, 1.0);
+    double adaptive_voxel_size = genz_icp::Clamp(voxel_size * static_cast<double>(source_tmp.size()) / static_cast<double>(config_.desired_num_voxelized_points), 0.02, 2.0);
 
     // Re-voxelize using the adaptive voxel size
     const auto &[source, frame_downsample] = Voxelize(cropped_frame, adaptive_voxel_size);
