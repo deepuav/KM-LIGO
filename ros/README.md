@@ -68,7 +68,7 @@ The bagfile for the **Exp07** Long Corridor sequence of HILTI-Oxford dataset can
 roslaunch genz_icp odometry.launch topic:=/velodyne_points config_file:=corridor.yaml
 ```
 ```sh
-rosbag play corridor1.bag
+rosbag play corridor1.bag && rosbag play corridor2.bag
 ```
 
 The bagfile for the **Corridor1** and **Corridor2** sequences of Ground-Challenge dataset can be downloaded from [here][ground_challenge_link]
