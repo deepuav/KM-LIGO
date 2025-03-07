@@ -42,6 +42,18 @@ struct ResultTuple {
     std::vector<Eigen::Vector3d> source;
     std::vector<Eigen::Vector3d> target;
 };
+
+static const std::array<Eigen::Vector3i, 27> voxel_shifts{
+    Eigen::Vector3i(0, 0, 0),   Eigen::Vector3i(1, 0, 0),   Eigen::Vector3i(-1, 0, 0),
+    Eigen::Vector3i(0, 1, 0),   Eigen::Vector3i(0, -1, 0),  Eigen::Vector3i(0, 0, 1),
+    Eigen::Vector3i(0, 0, -1),  Eigen::Vector3i(1, 1, 0),   Eigen::Vector3i(1, -1, 0),
+    Eigen::Vector3i(-1, 1, 0),  Eigen::Vector3i(-1, -1, 0), Eigen::Vector3i(1, 0, 1),
+    Eigen::Vector3i(1, 0, -1),  Eigen::Vector3i(-1, 0, 1),  Eigen::Vector3i(-1, 0, -1),
+    Eigen::Vector3i(0, 1, 1),   Eigen::Vector3i(0, 1, -1),  Eigen::Vector3i(0, -1, 1),
+    Eigen::Vector3i(0, -1, -1), Eigen::Vector3i(1, 1, 1),   Eigen::Vector3i(1, 1, -1),
+    Eigen::Vector3i(1, -1, 1),  Eigen::Vector3i(1, -1, -1), Eigen::Vector3i(-1, 1, 1),
+    Eigen::Vector3i(-1, 1, -1), Eigen::Vector3i(-1, -1, 1), Eigen::Vector3i(-1, -1, -1)
+};
 }  // namespace
 
 namespace genz_icp {
@@ -84,40 +96,35 @@ VoxelHashMap::Vector3dVectorTuple7 VoxelHashMap::GetCorrespondences(
         for (size_t i = r.begin(); i != r.end(); ++i) {
             const Eigen::Vector3d &point = points[i];
 
-            // Find the closest neighbor
+            // Variables for the closest neighbor search & normal estimation
             Eigen::Vector3d closest_neighbor = Eigen::Vector3d::Zero();
             double closest_distance2 = std::numeric_limits<double>::max();
-
-            // Collect neighbors for normal estimation
             std::vector<Eigen::Vector3d> neighbors;
             neighbors.reserve(27 * max_points_per_voxel_); 
-
-            // Search in the neighboring voxels
             auto kx = static_cast<int>(point[0] / voxel_size_);
             auto ky = static_cast<int>(point[1] / voxel_size_);
             auto kz = static_cast<int>(point[2] / voxel_size_);
-            for (int i = kx - 1; i <= kx + 1; ++i) {
-                for (int j = ky - 1; j <= ky + 1; ++j) {
-                    for (int k = kz - 1; k <= kz + 1; ++k) {
-                        Voxel voxel(i, j, k);
-                        auto search = map_.find(voxel);
-                        if (search != map_.end()) {
-                            const auto &voxel_points = search->second.points;
-                            for (const auto &voxel_point : voxel_points) {
-                                double distance = (voxel_point - point).norm();
-                                if (distance < closest_distance2) {
-                                    closest_neighbor = voxel_point;
-                                    closest_distance2 = distance;
-                                }
-                                neighbors.emplace_back(voxel_point);
-                            }
+            Eigen::Vector3d centroid = Eigen::Vector3d::Zero();
+
+            // Search in the neighboring voxels
+            for (const auto &shift : voxel_shifts) {
+                Voxel voxel(kx + shift[0], ky + shift[1], kz + shift[2]);
+                auto search = map_.find(voxel);
+                if (search != map_.end()) {
+                    const auto &voxel_points = search->second.points;
+                    for (const auto &voxel_point : voxel_points) {
+                        double distance = (voxel_point - point).norm();
+                        if (distance < closest_distance2) {
+                            closest_neighbor = voxel_point;
+                            closest_distance2 = distance;
                         }
+                        neighbors.emplace_back(voxel_point);
+                        centroid += voxel_point;
                     }
                 }
             }
 
             if (closest_distance2 > max_correspondance_distance) continue;
-            //if ((closest_neighbor - point).norm() > max_correspondance_distance*2) continue;
             
             const size_t min_neighbors_for_normal_estimation = 5; 
             if (neighbors.size() >= min_neighbors_for_normal_estimation){
@@ -125,12 +132,8 @@ VoxelHashMap::Vector3dVectorTuple7 VoxelHashMap::GetCorrespondences(
                 // Estimate normal using neighboring points
                 Eigen::Vector3d normal = Eigen::Vector3d::Zero();
                 Eigen::Matrix3d covariance = Eigen::Matrix3d::Zero();
-                Eigen::Vector3d centroid = Eigen::Vector3d::Zero();
 
                 // Calculate the centroid of the neighbors
-                for (const auto& neighbor : neighbors) {
-                    centroid += neighbor;
-                }
                 centroid /= static_cast<double>(neighbors.size());
 
                 // Calculate the covariance matrix
