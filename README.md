@@ -56,22 +56,9 @@ roslaunch genz_icp odometry.launch topic:=<topic_name> config_file:=<config_file
 rosbag play <rosbag_file_name>.bag
 ```
 
-For example,
+Examples and download links for **demo datasets** can be found [here][ros_readme_link]
 
-```sh
-roslaunch genz_icp odometry.launch topic:=/velodyne_points config_file:=long_corridor.yaml
-```
-```sh
-rosbag play subt_mrs_long_corridor.bag
-```
-
-The original bagfile for the **Long_Corridor** sequence of SubT-MRS dataset can be downloaded from [here][long_corridor_original_link]
-
-`subt_mrs_long_corridor.bag` includes only the `/velodyne_points` topic and can be downloaded from [here][long_corridor_link]
-
-[long_corridor_original_link]: https://superodometry.com/iccv23_challenge_Mul
-[long_corridor_link]: https://cocel.synology.me:5001/sharing/JZQalfEqQ
-
+[ros_readme_link]: https://github.com/cocel-postech/genz-icp/blob/master/ros/README.md
 
 #### Option 2
 
