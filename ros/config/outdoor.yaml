@@ -1,4 +1,4 @@
-# Parameter set for outdoor environment (e.g. short experiment sequence of the Newer College Dataset)
+# Parameter set for outdoor environment (e.g. KITTI Odometry Dataset or short experiment sequence of Newer College Dataset)
 
 # topic: (set in launch file or command line)
 deskew: false
