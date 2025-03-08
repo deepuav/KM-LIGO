@@ -88,6 +88,19 @@ The bagfile for the **short experiment** sequence of Newer-College dataset can b
 
 [newer_college_link]: https://ori-drs.github.io/newer-college-dataset/
 
+5. **Seq. 00** of KITTI odometry dataset
+
+```sh
+roslaunch genz_icp odometry.launch topic:=/velodyne_points config_file:=outdoor.yaml
+```
+```sh
+rosbag play 00.bag
+```
+
+The bagfile for the **Seq. 00** of KITTI odometry dataset can be downloaded from [here][kitti_link]
+
+[kitti_link]: https://cocel.synology.me:5001/sharing/r0j0ziWOx
+
 #### Option 2
 
 Otherwise, the only required argument to provide is the **topic name**:
