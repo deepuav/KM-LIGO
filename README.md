@@ -7,6 +7,8 @@
     <a href="https://ieeexplore.ieee.org/document/10753079"><img src="https://img.shields.io/badge/DOI-10.1109/LRA.2024.3498779-004088.svg"/>
     <br />
     <br />
+    <a href="https://www.youtube.com/watch?v=EyTJbdC_AA4">Demo</a>
+    <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
     <a href="https://www.youtube.com/watch?v=CU6aAiTIO6Y">Video</a>
     <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
     <a href="https://github.com/cocel-postech/genz-icp/blob/master/README.md">Install</a>
