@@ -133,11 +133,13 @@ If you use our codes, please cite our paper ([arXiv][arXivLink], [IEEE *Xplore*]
 
 ## :pray: Acknowledgement
 
-Many thanks to [Ignacio Vizzo][nacholink] to provide outstanding LiDAR odometry codes!
+Many thanks to KISS team—[Ignacio Vizzo][nacholink], [Tiziano Guadagnino][guadagninolink], [Benedikt Mersch][merschlink]—to provide outstanding LiDAR odometry codes!
 
 Please refer to [KISS-ICP][kissicplink] for more information
 
 [nacholink]: https://github.com/nachovizzo
+[guadagninolink]: https://github.com/tizianoGuadagnino
+[merschlink]: https://github.com/benemer
 [kissicplink]: https://github.com/PRBonn/kiss-icp
 
 ## :mailbox: Contact information
