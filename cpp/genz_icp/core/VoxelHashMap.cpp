@@ -141,13 +141,18 @@ VoxelHashMap::Vector3dVectorTuple7 VoxelHashMap::GetCorrespondences(
             non_planar_target.reserve(n);
         }
 
-        ResultTuple operator+(const ResultTuple &other) const {
+        ResultTuple operator+(ResultTuple other) const {
             ResultTuple result(*this);
-            result.source.insert(result.source.end(), other.source.begin(), other.source.end());
-            result.target.insert(result.target.end(), other.target.begin(), other.target.end());
-            result.normals.insert(result.normals.end(), other.normals.begin(), other.normals.end());
-            result.non_planar_source.insert(result.non_planar_source.end(), other.non_planar_source.begin(), other.non_planar_source.end());
-            result.non_planar_target.insert(result.non_planar_target.end(), other.non_planar_target.begin(), other.non_planar_target.end());
+            result.source.insert(result.source.end(),
+                std::make_move_iterator(other.source.begin()), std::make_move_iterator(other.source.end()));
+            result.target.insert(result.target.end(),
+                std::make_move_iterator(other.target.begin()), std::make_move_iterator(other.target.end()));
+            result.normals.insert(result.normals.end(),
+                std::make_move_iterator(other.normals.begin()), std::make_move_iterator(other.normals.end()));
+            result.non_planar_source.insert(result.non_planar_source.end(),
+                std::make_move_iterator(other.non_planar_source.begin()), std::make_move_iterator(other.non_planar_source.end()));
+            result.non_planar_target.insert(result.non_planar_target.end(),
+                std::make_move_iterator(other.non_planar_target.begin()), std::make_move_iterator(other.non_planar_target.end()));
             result.planar_count += other.planar_count;
             result.non_planar_count += other.non_planar_count;        
             return result;
