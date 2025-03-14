@@ -46,8 +46,13 @@ The original bagfile for the **Long_Corridor** sequence of SubT-MRS dataset can 
 `subt_mrs_long_corridor.bag` includes only the `/velodyne_points` topic and can be downloaded from [here][long_corridor_link]
 
 [long_corridor_original_link]: https://superodometry.com/iccv23_challenge_Mul
-[long_corridor_link]: https://cocel.synology.me:5001/sharing/JZQalfEqQ
+[long_corridor_link]: https://postechackr-my.sharepoint.com/:u:/g/personal/daehanlee_postech_ac_kr/EduGeuaT5ypBvSQY539XFEgBRSsQSUopeNjalk9jJqyq5Q?e=yFaLEN
 
+Alternatively, you can download it using the following command:
+
+```sh
+wget https://postechackr-my.sharepoint.com/:u:/g/personal/daehanlee_postech_ac_kr/EduGeuaT5ypBvSQY539XFEgBRSsQSUopeNjalk9jJqyq5Q?e=2IM8ed&download=1 -O subt_mrs_long_corridor.zip
+```
 
 2. **Exp07** Long Corridor sequence of HILTI-Oxford dataset
 
@@ -97,9 +102,20 @@ roslaunch genz_icp odometry.launch topic:=/velodyne_points config_file:=outdoor.
 rosbag play 00.bag
 ```
 
-The bagfile for the **Seq. 00** of KITTI odometry dataset can be downloaded from [here][kitti_link]
+The bagfile for the **Seq. 00** of KITTI odometry dataset can be downloaded from [here][00_link]
 
-[kitti_link]: https://cocel.synology.me:5001/sharing/r0j0ziWOx
+[00_link]: https://postechackr-my.sharepoint.com/:u:/g/personal/daehanlee_postech_ac_kr/EVxChaGoOiJIr5vTy44DNUIBlAs4Mbld5wj94qJYyWwAKg?e=QjhpLE
+
+Alternatively, you can download it using the following command:
+
+```sh
+wget https://postechackr-my.sharepoint.com/:u:/g/personal/daehanlee_postech_ac_kr/EVxChaGoOiJIr5vTy44DNUIBlAs4Mbld5wj94qJYyWwAKg?e=ZPE6JT&download=1 -O 00.zip
+```
+
+If you need bag files for other sequences, you can download the original files from [here][kitti_link] and convert them using [lidar2rosbag_kitti][lidar2rosbag_kitti_link]
+
+[kitti_link]: https://www.cvlibs.net/datasets/kitti/eval_odometry.php
+[lidar2rosbag_kitti_link]: https://github.com/AbnerCSZ/lidar2rosbag_KITTI
 
 #### Option 2
 
