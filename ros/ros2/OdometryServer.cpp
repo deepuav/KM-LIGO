@@ -62,7 +62,7 @@ OdometryServer::OdometryServer(const rclcpp::NodeOptions &options)
     config_.max_range = declare_parameter<double>("max_range", config_.max_range);
     config_.min_range = declare_parameter<double>("min_range", config_.min_range);
     config_.deskew = declare_parameter<bool>("deskew", config_.deskew);
-    config_.voxel_size = declare_parameter<double>("voxel_size", config_.max_range);
+    config_.voxel_size = declare_parameter<double>("voxel_size", config_.max_range / 100.0);
     config_.map_cleanup_radius = declare_parameter<double>("map_cleanup_radius", config_.map_cleanup_radius);
     config_.planarity_threshold = declare_parameter<double>("planarity_threshold", config_.planarity_threshold);
     config_.max_points_per_voxel = declare_parameter<int>("max_points_per_voxel", config_.max_points_per_voxel);
