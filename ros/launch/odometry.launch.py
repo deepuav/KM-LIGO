@@ -55,7 +55,7 @@ def generate_launch_description():
             DeclareLaunchArgument("desired_num_voxelized_points", default_value="2000"),
             DeclareLaunchArgument("planarity_threshold", default_value="0.12"),
             DeclareLaunchArgument("max_points_per_voxel", default_value="1"),
-            DeclareLaunchArgument("max_num_iterations", default_value="50"),
+            DeclareLaunchArgument("max_num_iterations", default_value="100"),
             DeclareLaunchArgument("convergence_criterion", default_value="0.0001"),
             DeclareLaunchArgument("initial_threshold", default_value="2.0"),
             DeclareLaunchArgument("min_motion_th", default_value="0.1"),
