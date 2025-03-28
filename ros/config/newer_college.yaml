@@ -1,13 +1,12 @@
-# Parameter set for Long_Corridor sequence of SubT-MRS dataset
+# Parameter set for Newer College Dataset - 01_short_experiment, 02_long_experiment, 07_parklandmount sequences
 # If this config doesn't work stably in your env., please refer to issue #11 and parameter tuning guide in README.md
 
-# topic: /velodyne_points (set in launch file or command line)
+# topic: /os1_cloud_node/points (set in launch file or command line)
 deskew: false
-max_range: 100.0
+max_range: 120.0
 min_range: 0.5
-voxel_size: 0.25
-map_cleanup_radius: 300
-desired_num_voxelized_points: 2000
+voxel_size: 0.5
+desired_num_voxelized_points: 3000
 planarity_threshold: 0.2
 max_points_per_voxel: 1
 initial_threshold: 2.0
