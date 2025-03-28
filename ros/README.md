@@ -83,7 +83,7 @@ The bagfile for the **Corridor1** and **Corridor2** sequences of Ground-Challeng
 4. **short experiment** sequence of Newer-College dataset
 
 ```sh
-roslaunch genz_icp odometry.launch topic:=/os1_cloud_node/points config_file:=outdoor.yaml
+roslaunch genz_icp odometry.launch topic:=/os1_cloud_node/points config_file:=newer_college.yaml
 ```
 ```sh
 rosbag play rooster_2020-03-10-10-36-30_0.bag && rosbag play rooster_2020-03-10-10-39-18_1.bag && rosbag play rooster_2020-03-10-10-42-05_2.bag && rosbag play rooster_2020-03-10-10-44-52_3.bag && rosbag play rooster_2020-03-10-10-47-39_4.bag && rosbag play rooster_2020-03-10-10-50-26_5.bag && rosbag play rooster_2020-03-10-10-53-13_6.bag && rosbag play rooster_2020-03-10-10-56-00_7.bag && rosbag play rooster_2020-03-10-10-58-47_8.bag && rosbag play rooster_2020-03-10-11-01-34_9.bag
@@ -96,7 +96,7 @@ The bagfile for the **short experiment** sequence of Newer-College dataset can b
 5. **Seq. 00** of KITTI odometry dataset
 
 ```sh
-roslaunch genz_icp odometry.launch topic:=/velodyne_points config_file:=outdoor.yaml
+roslaunch genz_icp odometry.launch topic:=/velodyne_points config_file:=kitti.yaml
 ```
 ```sh
 rosbag play 00.bag
