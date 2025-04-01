@@ -124,7 +124,7 @@ Check out the tuning guide for the parameters of GenZ-ICP at this [link][tuning_
 
 ## :pushpin: Todo list
 ✔️ Code optimization to reduce CPU load
-- [ ] Python support for GenZ-ICP
+[ ] Python support for GenZ-ICP
 
 
 ## :pencil: Citation
