@@ -39,7 +39,7 @@
 | *VoxelHashMap.cpp* | Precomputed Statistics in `GetClosestNeighbor`| Use `sum_points` and `sum_outer` for O(27) computation vs. O(27 * P) per query                            | 15–25% of total runtime                  |
 | *VoxelHashMap.cpp* | Efficient `AddPoints`                         | Simplify with `for` loop and `map_.at()`, maintaining precomputed stats                                  | 1–3% of total runtime                    |
 | *VoxelHashMap.cpp* | Optimized `RemovePointsFarFromLocation`       | Use iterator-based `erase` for safe and efficient removal                                                 | 1–2% of total runtime                    |
-| *Overall*          | Combined Effect                               | Cumulative impact across all optimizations, varying with point cloud size and voxel density               | **30–70% of total runtime**              |
+| *Overall*          | Combined Effect                               | Cumulative impact across all optimizations, varying with point cloud size and voxel density               | **20–50% of total runtime**              |
 ---
 
 ## :gear: How to build & run
