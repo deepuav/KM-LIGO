@@ -32,13 +32,13 @@
 ## :anger: Optimizations:
 | **File**             | **Optimization**                              | **Description**                                                                                              | **Estimated CPU Usage Reduction**         |
 |----------------------|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------|-------------------------------------------|
-| *Registration.cpp* | Vectorized `TransformPoints`                  | Uses Eigen matrix operations instead of per-point `std::transform`.                                         | 5–15% of total runtime                   |
-| *Registration.cpp* | Precomputed `kernel_squared`                  | Computes `kernel * kernel` once instead of repeatedly in `Weight`.                                           | 0.5–1% of total runtime                  |
-| *Registration.cpp* | Improved Weight Function                      | Reduces operations in weight computation from 4 to 2 multiplications + 1 addition.                          | 2–5% of total runtime                    |
-| *VoxelHashMap.cpp* | Squared Distance in `GetClosestNeighbor`      | Uses `.squaredNorm()` for comparisons, with one `sqrt` at the end.                                           | 10–20% of total runtime                  |
-| *VoxelHashMap.cpp* | Precomputed Statistics in `GetClosestNeighbor`| Uses `sum_points` and `sum_outer` for O(27) computation vs. O(27 * P) per query.                            | 15–25% of total runtime                  |
-| *VoxelHashMap.cpp* | Efficient `AddPoints`                         | Simplifies with `for` loop and `map_.at()`, maintaining precomputed stats.                                  | 1–3% of total runtime                    |
-| *VoxelHashMap.cpp* | Optimized `RemovePointsFarFromLocation`       | Uses iterator-based `erase` for safe and efficient removal.                                                 | 1–2% of total runtime                    |
+| *Registration.cpp* | Vectorized `TransformPoints`                  | Use Eigen matrix operations instead of per-point `std::transform`.                                         | 5–15% of total runtime                   |
+| *Registration.cpp* | Precomputed `kernel_squared`                  | Compute `kernel * kernel` once instead of repeatedly in `Weight`.                                           | 0.5–1% of total runtime                  |
+| *Registration.cpp* | Improved Weight Function                      | Reduce operations in weight computation from 4 to 2 multiplications + 1 addition.                          | 2–5% of total runtime                    |
+| *VoxelHashMap.cpp* | Squared Distance in `GetClosestNeighbor`      | Use `.squaredNorm()` for comparisons, with one `sqrt` at the end.                                           | 10–20% of total runtime                  |
+| *VoxelHashMap.cpp* | Precomputed Statistics in `GetClosestNeighbor`| Use `sum_points` and `sum_outer` for O(27) computation vs. O(27 * P) per query.                            | 15–25% of total runtime                  |
+| *VoxelHashMap.cpp* | Efficient `AddPoints`                         | Simplify with `for` loop and `map_.at()`, maintaining precomputed stats.                                  | 1–3% of total runtime                    |
+| *VoxelHashMap.cpp* | Optimized `RemovePointsFarFromLocation`       | Use iterator-based `erase` for safe and efficient removal.                                                 | 1–2% of total runtime                    |
 | *Overall*          | Combined Effect                               | Cumulative impact across all optimizations, varying with point cloud size and voxel density.               | **30–70% of total runtime**              |
 ---
 
