@@ -29,6 +29,7 @@
 [arXivlink]: https://arxiv.org/abs/2411.06766
 
 ---
+## :anger: Optimizations:
 | **File**             | **Optimization**                              | **Description**                                                                                              | **Estimated CPU Usage Reduction**         |
 |----------------------|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------|-------------------------------------------|
 | *Registration.cpp* | Vectorized `TransformPoints`                  | Uses Eigen matrix operations instead of per-point `std::transform`.                                         | 5–15% of total runtime                   |
