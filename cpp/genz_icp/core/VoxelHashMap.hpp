@@ -22,8 +22,8 @@
 // SOFTWARE.
 //
 // NOTE: This implementation is heavily inspired in the original CT-ICP VoxelHashMap implementation,
-// although it was heavily modifed and drastically simplified, but if you are using this module you
-// should at least acknoowledge the work from CT-ICP by giving a star on GitHub
+// although it was heavily modified and drastically simplified, but if you are using this module you
+// should at least acknowledge the work from CT-ICP by giving a star on GitHub
 #pragma once
 
 #include <tsl/robin_map.h>
@@ -39,11 +39,28 @@ struct VoxelHashMap {
     using Vector3dVectorTuple7 = std::tuple<Vector3dVector, Vector3dVector, Vector3dVector, Vector3dVector, Vector3dVector, size_t, size_t>;
     using Voxel = Eigen::Vector3i;
     struct VoxelBlock {
-        // buffer of points with a max limit of n_points
+        // Buffer of points with a max limit of max_points
         std::vector<Eigen::Vector3d> points;
-        int num_points_;
+        int max_points_; // Renamed for clarity (was num_points_)
+        Eigen::Vector3d sum_points = Eigen::Vector3d::Zero();
+        Eigen::Matrix3d sum_outer = Eigen::Matrix3d::Zero();
+
+        // Default constructor for empty voxel
+        VoxelBlock(int max_points) : max_points_(max_points) {}
+
+        // Constructor for initializing with the first point
+        VoxelBlock(const Eigen::Vector3d& initial_point, int max_points)
+            : points{initial_point},
+              max_points_(max_points),
+              sum_points(initial_point),
+              sum_outer(initial_point * initial_point.transpose()) {}
+
         inline void AddPoint(const Eigen::Vector3d &point) {
-            if (points.size() < static_cast<size_t>(num_points_)) points.push_back(point);
+            if (points.size() < static_cast<size_t>(max_points_)) {
+                points.push_back(point);
+                sum_points += point;
+                sum_outer += point * point.transpose();
+            }
         }
     };
     struct VoxelHash {
@@ -72,7 +89,6 @@ struct VoxelHashMap {
     std::vector<Eigen::Vector3d> Pointcloud() const;
     std::tuple<Eigen::Vector3d, size_t, Eigen::Matrix3d, double> GetClosestNeighbor(const Eigen::Vector3d &query) const;
     std::pair<bool, Eigen::Vector3d> DeterminePlanarity(const Eigen::Matrix3d &covariance) const;
-
 
     double voxel_size_;
     double max_distance_;
