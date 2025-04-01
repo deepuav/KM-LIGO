@@ -123,7 +123,7 @@ ros2 bag play <rosbag_file_name>.mcap
 Check out the tuning guide for the parameters of GenZ-ICP at this [link][tuning_guide_link]
 
 ## :pushpin: Todo list
-- ✔️ Code optimization to reduce CPU load
+✔️ Code optimization to reduce CPU load
 - [ ] Python support for GenZ-ICP
 
 
