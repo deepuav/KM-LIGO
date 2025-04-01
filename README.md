@@ -1,5 +1,5 @@
 <div align="center">
-    <h1>GenZ-ICP</h1>
+    <h1>GenZ-ICP (Optimized)</h1>
     <a href="https://github.com/cocel-postech/genz-icp/tree/master/cpp/genz_icp"><img src="https://img.shields.io/badge/-C++-blue?logo=cplusplus" /></a>
     <a href="https://github.com/cocel-postech/genz-icp/tree/master/ros"><img src="https://img.shields.io/badge/ROS1-Noetic-blue" /></a>
     <a href="https://github.com/cocel-postech/genz-icp/tree/master/ros"><img src="https://img.shields.io/badge/ROS2-Humble-blue" /></a>
@@ -27,6 +27,12 @@
 </div>
 
 [arXivlink]: https://arxiv.org/abs/2411.06766
+
+### Optimizations:
+- sdfdsf
+- fdsfds
+- fsdfd
+---
 
 ## :gear: How to build & run
 
