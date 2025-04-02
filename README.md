@@ -162,7 +162,9 @@ Please refer to [KISS-ICP][kissicplink] for more information
 If you have any questions, please do not hesitate to contact us
 * [Daehan Lee][dhlink] :envelope: daehanlee `at` postech `dot` ac `dot` kr
 * [Hyungtae Lim][htlink] :envelope: shapelim `at` mit `dot` edu
+* [Ali Pahlevani][aplink] :envelope: a.pahlevani1998 `at` gmail `dot` com
 
 [dhlink]: https://github.com/Daehan2Lee
 [htlink]: https://github.com/LimHyungTae
+[aplink]: https://github.com/ali-pahlevani
  
