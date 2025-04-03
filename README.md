@@ -146,6 +146,15 @@ If you use our codes, please cite our paper ([arXiv][arXivLink], [IEEE *Xplore*]
 
 [genzicpIEEElink]: https://ieeexplore.ieee.org/document/10753079
 
+## :sparkles: Contributors
+
+Like [KISS-ICP](https://github.com/PRBonn/kiss-icp),
+we envision GenZ-ICP as a community-driven project, we love to see how the project is growing thanks to the contributions from the community. We would love to see your face in the list below, just open a Pull Request!
+
+<a href="https://github.com/cocel-postech/genz-icp/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=cocel-postech/genz-icp" />
+</a>
+
 ## :pray: Acknowledgement
 
 Many thanks to KISS team—[Ignacio Vizzo][nacholink], [Tiziano Guadagnino][guadagninolink], [Benedikt Mersch][merschlink]—to provide outstanding LiDAR odometry codes!
