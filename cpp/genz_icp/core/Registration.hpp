@@ -24,23 +24,48 @@
 
 #include <Eigen/Core>
 #include <sophus/se3.hpp>
+#include <utility>
 #include <vector>
-#include <iomanip>
 
 #include "VoxelHashMap.hpp"
 
 namespace genz_icp {
-    
-struct Registration {
-    explicit Registration(int max_num_iteration, double convergence_criterion);
 
-    std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> RegisterFrame(const std::vector<Eigen::Vector3d> &frame,
-                                                                                                       const VoxelHashMap &voxel_map,
-                                                                                                       const Sophus::SE3d &initial_guess,
-                                                                                                       double max_correspondence_distance,
-                                                                                                       double kernel);
+/// Crop the frame with max/min ranges
+std::vector<Eigen::Vector3d> Preprocess(const std::vector<Eigen::Vector3d> &frame,
+                                        double max_range,
+                                        double min_range);
 
+/// This function only applies for the KITTI dataset, and should NOT be used by any other dataset,
+/// the original idea and part of the implementation is taken from CT-ICP (although IMLS-SLAM
+/// originally introduced the calibration factor)
+std::vector<Eigen::Vector3d> CorrectKITTIScan(const std::vector<Eigen::Vector3d> &frame);
+
+std::vector<Eigen::Vector3d> VoxelDownsample(const std::vector<Eigen::Vector3d> &frame,
+                                             double voxel_size);
+
+std::vector<Eigen::Vector3d> VoxelDownsampleForMap(const std::vector<Eigen::Vector3d> &frame,
+                                                   double voxel_size);
+
+std::vector<Eigen::Vector3d> VoxelDownsampleForScan(const std::vector<Eigen::Vector3d> &frame,
+                                                    double voxel_size);
+
+double Clamp(double value, double min, double max);
+
+class Registration {
+public:
+    Registration(int max_num_iteration, double convergence_criterion);
+
+    std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> RegisterFrame(
+        const std::vector<Eigen::Vector3d> &frame,
+        const VoxelHashMap &voxel_map,
+        const Sophus::SE3d &initial_guess,
+        double max_correspondence_distance,
+        double kernel);
+
+private:
     int max_num_iterations_;
     double convergence_criterion_;
 };
+
 }  // namespace genz_icp

@@ -27,10 +27,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>  // Added for std::setprecision
+#include <iostream>
 #include <sophus/se3.hpp>
 #include <sophus/so3.hpp>
 #include <tuple>
-#include <iostream>
 
 namespace Eigen {
 using Matrix6d = Eigen::Matrix<double, 6, 6>;
@@ -40,30 +41,33 @@ using Vector6d = Eigen::Matrix<double, 6, 1>;
 
 namespace {
 
+// Helper function for squaring
 inline double square(double x) { return x * x; }
 
+// Structure to hold JTJ and JTr for parallel reduction
 struct ResultTuple {
-    ResultTuple() {
-        JTJ.setZero();
-        JTr.setZero();
-    }
-
-    ResultTuple operator+(const ResultTuple &other) {
-        this->JTJ += other.JTJ;
-        this->JTr += other.JTr;
-        return *this;
-    }
-
     Eigen::Matrix6d JTJ;
     Eigen::Vector6d JTr;
+
+    ResultTuple() : JTJ(Eigen::Matrix6d::Zero()), JTr(Eigen::Vector6d::Zero()) {}
+
+    ResultTuple operator+(const ResultTuple &other) const {
+        ResultTuple result;
+        result.JTJ = JTJ + other.JTJ;
+        result.JTr = JTr + other.JTr;
+        return result;
+    }
 };
 
+// Optimized TransformPoints using Eigen matrix operations
 void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector3d> &points) {
-    std::transform(points.cbegin(), points.cend(), points.begin(),
-                   [&](const auto &point) { return T * point; });
+    if (points.empty()) return;
+    Eigen::Map<Eigen::Matrix3Xd> points_map(reinterpret_cast<double*>(points.data()), 3, points.size());
+    points_map = T.rotationMatrix() * points_map;
+    points_map.colwise() += T.translation();
 }
 
-//Build the linear system for the GenZ-ICP
+// Build the linear system for GenZ-ICP with optimized weight computation
 std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildLinearSystem(
     const std::vector<Eigen::Vector3d> &src_planar,
     const std::vector<Eigen::Vector3d> &tgt_planar,
@@ -73,31 +77,17 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildLinearSystem(
     double kernel,
     double alpha) {
 
-    struct ResultTuple {
-        Eigen::Matrix6d JTJ;
-        Eigen::Vector6d JTr;
+    double kernel_squared = kernel * kernel;
 
-        ResultTuple() : JTJ(Eigen::Matrix6d::Zero()), JTr(Eigen::Vector6d::Zero()) {}
-
-        ResultTuple operator+(const ResultTuple &other) const {
-            ResultTuple result;
-            result.JTJ = JTJ + other.JTJ;
-            result.JTr = JTr + other.JTr;
-            return result;
-        }
-    };
-
-    // Point-to-Plane Jacobian and Residual
-    auto compute_jacobian_and_residual_planar = [&](auto i) {
-        double r_planar = (src_planar[i] - tgt_planar[i]).dot(normals[i]); // residual
-        Eigen::Matrix<double, 1, 6> J_planar; // Jacobian matrix
-        J_planar.block<1, 3>(0, 0) = normals[i].transpose(); 
+    auto compute_jacobian_and_residual_planar = [&](size_t i) {
+        double r_planar = (src_planar[i] - tgt_planar[i]).dot(normals[i]);
+        Eigen::Matrix<double, 1, 6> J_planar;
+        J_planar.block<1, 3>(0, 0) = normals[i].transpose();
         J_planar.block<1, 3>(0, 3) = (src_planar[i].cross(normals[i])).transpose();
         return std::make_tuple(J_planar, r_planar);
     };
 
-    // Point-to-Point Jacobian and Residual
-    auto compute_jacobian_and_residual_non_planar = [&](auto i) {
+    auto compute_jacobian_and_residual_non_planar = [&](size_t i) {
         const Eigen::Vector3d r_non_planar = src_non_planar[i] - tgt_non_planar[i];
         Eigen::Matrix3_6d J_non_planar;
         J_non_planar.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
@@ -106,17 +96,18 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildLinearSystem(
     };
 
     auto compute = [&](const tbb::blocked_range<size_t> &r, ResultTuple J) -> ResultTuple {
-        auto Weight = [&](double residual) {
-            return square(kernel) / square(kernel + residual);
+        auto Weight = [&](double residual_squared) {
+            double denom = kernel + residual_squared;
+            return kernel_squared / (denom * denom);
         };
         auto &[JTJ_private, JTr_private] = J;
         for (size_t i = r.begin(); i < r.end(); ++i) {
-            if (i < src_planar.size()) { // Point-to-Plane
+            if (i < src_planar.size()) {
                 const auto &[J_planar, r_planar] = compute_jacobian_and_residual_planar(i);
                 double w_planar = Weight(r_planar * r_planar);
                 JTJ_private.noalias() += alpha * J_planar.transpose() * w_planar * J_planar;
                 JTr_private.noalias() += alpha * J_planar.transpose() * w_planar * r_planar;
-            } else { // Point-to-Point
+            } else {
                 size_t index = i - src_planar.size();
                 if (index < src_non_planar.size()) {
                     const auto &[J_non_planar, r_non_planar] = compute_jacobian_and_residual_non_planar(index);
@@ -129,19 +120,16 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildLinearSystem(
         return J;
     };
 
-
     size_t total_size = src_planar.size() + src_non_planar.size();
     const auto &[JTJ, JTr] = tbb::parallel_reduce(
         tbb::blocked_range<size_t>(0, total_size),
         ResultTuple(),
         compute,
-        [](const ResultTuple &a, const ResultTuple &b) {
-            return a + b;
-        });
-
+        [](const ResultTuple &a, const ResultTuple &b) { return a + b; });
     return std::make_tuple(JTJ, JTr);
 }
 
+// Visualization function
 void VisualizeStatus(size_t planar_count, size_t non_planar_count, double alpha) {
     const int bar_width = 52;
     const std::string planar_color = "\033[1;38;2;0;119;187m";
@@ -157,33 +145,34 @@ void VisualizeStatus(size_t planar_count, size_t non_planar_count, double alpha)
     std::cout << alpha_color << "alpha: " << std::fixed << std::setprecision(3) << alpha << "\033[0m";
     std::cout << "  ----->  Structured\n";
 
-    const int alpha_location = static_cast<int>(bar_width * alpha); 
+    const int alpha_location = static_cast<int>(bar_width * alpha);
     std::cout << "[";
     for (int i = 0; i < bar_width; ++i) {
         if (i == alpha_location) {
-            std::cout << "\033[1;32m█\033[0m"; 
+            std::cout << "\033[1;32m█\033[0m";
         } else {
-            std::cout << "-"; 
+            std::cout << "-";
         }
     }
     std::cout << "]\n";
     std::cout.flush();
 }
+
 }  // namespace
 
 namespace genz_icp {
 
 Registration::Registration(int max_num_iteration, double convergence_criterion)
-    : max_num_iterations_(max_num_iteration), 
+    : max_num_iterations_(max_num_iteration),
       convergence_criterion_(convergence_criterion) {}
 
-std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> Registration::RegisterFrame(const std::vector<Eigen::Vector3d> &frame,
-                                                                                                   const VoxelHashMap &voxel_map,
-                                                                                                   const Sophus::SE3d &initial_guess,
-                                                                                                   double max_correspondence_distance,
-                                                                                                   double kernel) {
-    
-    // for visualization
+std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> Registration::RegisterFrame(
+    const std::vector<Eigen::Vector3d> &frame,
+    const VoxelHashMap &voxel_map,
+    const Sophus::SE3d &initial_guess,
+    double max_correspondence_distance,
+    double kernel) {
+
     std::vector<Eigen::Vector3d> final_planar_points;
     std::vector<Eigen::Vector3d> final_non_planar_points;
     final_planar_points.clear();
@@ -194,18 +183,16 @@ std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector
     std::vector<Eigen::Vector3d> source = frame;
     TransformPoints(initial_guess, source);
 
-    // GenZ-ICP-loop
     Sophus::SE3d T_icp = Sophus::SE3d();
     for (int j = 0; j < max_num_iterations_; ++j) {
-        const auto &[src_planar, tgt_planar, normals, src_non_planar, tgt_non_planar, planar_count, non_planar_count] = voxel_map.GetCorrespondences(source, max_correspondence_distance);
+        const auto &[src_planar, tgt_planar, normals, src_non_planar, tgt_non_planar, planar_count, non_planar_count] =
+            voxel_map.GetCorrespondences(source, max_correspondence_distance);
         double alpha = static_cast<double>(planar_count) / static_cast<double>(planar_count + non_planar_count);
         const auto &[JTJ, JTr] = BuildLinearSystem(src_planar, tgt_planar, normals, src_non_planar, tgt_non_planar, kernel, alpha);
         const Eigen::Vector6d dx = JTJ.ldlt().solve(-JTr);
         const Sophus::SE3d estimation = Sophus::SE3d::exp(dx);
         TransformPoints(estimation, source);
-        // Update iterations
         T_icp = estimation * T_icp;
-        // Termination criteria
         if (dx.norm() < convergence_criterion_ || j == max_num_iterations_ - 1) {
             VisualizeStatus(planar_count, non_planar_count, alpha);
             final_planar_points = src_planar;
@@ -213,8 +200,6 @@ std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector
             break;
         }
     }
-
-    // // Spit the final transformation
     return std::make_tuple(T_icp * initial_guess, final_planar_points, final_non_planar_points);
 }
 

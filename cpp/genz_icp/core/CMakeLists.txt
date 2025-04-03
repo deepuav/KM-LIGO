@@ -24,4 +24,11 @@ add_library(core STATIC)
 add_library(genz_icp::core ALIAS core)
 target_sources(core PRIVATE Registration.cpp Deskew.cpp VoxelHashMap.cpp Preprocessing.cpp Threshold.cpp)
 target_link_libraries(core PUBLIC Eigen3::Eigen tsl::robin_map TBB::tbb Sophus::Sophus)
+
+# Optional: Enable OpenMP for Eigen multi-threading (if available)
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(core PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
 set_global_target_properties(core)
