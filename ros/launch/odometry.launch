@@ -2,7 +2,7 @@
 <launch>
   <!-- ROS paramaters -->
   <arg name="bagfile" default=""/>
-  <arg name="topic" default=""/>
+  <arg name="topic" default="/rslidar_points"/>
   <arg name="odom_frame" default="odom"/>
   <arg name="base_frame" default=""/>
   <arg name="publish_odom_tf" default="true"/>
