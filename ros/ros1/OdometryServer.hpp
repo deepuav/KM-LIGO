@@ -34,8 +34,15 @@
 #include <tf2_ros/transform_listener.h>
 
 #include <string>
+#include <deque>
+#include <geometry_msgs/PoseStamped.h>
 
 namespace genz_icp_ros {
+
+struct PX4Pose {
+    Sophus::SE3d pose;
+    ros::Time timestamp;
+};
 
 class OdometryServer {
 public:
@@ -61,6 +68,15 @@ private:
     Sophus::SE3d LookupTransform(const std::string &target_frame,
                                  const std::string &source_frame) const;
 
+    /// Callback for PX4 local position pose
+    void PX4PoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg);
+
+    /// Find nearest poses for interpolation
+    std::pair<PX4Pose, PX4Pose> FindNearestPoses(const ros::Time &target_time) const;
+
+    /// Interpolate pose between two poses
+    Sophus::SE3d InterpolatePose(const PX4Pose &pose1, const PX4Pose &pose2, const ros::Time &target_time) const;
+
     /// Ros node stuff
     ros::NodeHandle nh_;
     ros::NodeHandle pnh_;
@@ -75,6 +91,7 @@ private:
 
     /// Data subscribers.
     ros::Subscriber pointcloud_sub_;
+    ros::Subscriber px4_pose_sub_;
 
     /// Data publishers.
     ros::Publisher odom_publisher_;
@@ -82,6 +99,7 @@ private:
     ros::Publisher traj_publisher_;
     ros::Publisher planar_points_publisher_;
     ros::Publisher non_planar_points_publisher_;
+    ros::Publisher vision_pose_publisher_;
     nav_msgs::Path path_msg_;
 
     /// GenZ-ICP
@@ -91,6 +109,11 @@ private:
     /// Global/map coordinate frame.
     std::string odom_frame_{"odom"};
     std::string base_frame_{};
+
+    /// PX4 pose queue
+    std::deque<PX4Pose> px4_pose_queue_;
+    static constexpr size_t MAX_PX4_POSE_QUEUE_SIZE = 200;
+    static constexpr size_t MIN_PX4_POSE_QUEUE_SIZE = 30;
 };
 
 }  // namespace genz_icp_ros

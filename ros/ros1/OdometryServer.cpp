@@ -24,6 +24,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 // GenZ-ICP-ROS
 #include "OdometryServer.hpp"
@@ -79,10 +80,13 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     // Initialize subscribers
     pointcloud_sub_ = nh_.subscribe<sensor_msgs::PointCloud2>("pointcloud_topic", queue_size_,
                                                               &OdometryServer::RegisterFrame, this);
+    px4_pose_sub_ = nh_.subscribe<geometry_msgs::PoseStamped>("/mavros/local_position/pose", queue_size_,
+                                                              &OdometryServer::PX4PoseCallback, this);
 
     // Initialize publishers
     odom_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/genz/odometry", queue_size_);
     traj_publisher_ = pnh_.advertise<nav_msgs::Path>("/genz/trajectory", queue_size_);
+    vision_pose_publisher_ = pnh_.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", queue_size_);
     if (publish_debug_clouds_) {
         map_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/local_map", queue_size_);
         planar_points_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/planar_points", queue_size_);
@@ -94,6 +98,136 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
 
     // publish odometry msg
     ROS_INFO("GenZ-ICP ROS 1 Odometry Node Initialized");
+}
+
+void OdometryServer::PX4PoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
+    PX4Pose px4_pose;
+    px4_pose.timestamp = msg->header.stamp;
+    px4_pose.pose = tf2::poseToSophus(msg->pose);
+
+    // Add to queue and maintain size limit
+    px4_pose_queue_.push_back(px4_pose);
+    if (px4_pose_queue_.size() > MAX_PX4_POSE_QUEUE_SIZE) {
+        px4_pose_queue_.pop_front();
+    }
+}
+
+std::pair<PX4Pose, PX4Pose> OdometryServer::FindNearestPoses(const ros::Time &target_time) const {
+    if (px4_pose_queue_.size() < 2) {
+        ROS_WARN("Not enough poses in queue for interpolation");
+        return {px4_pose_queue_.front(), px4_pose_queue_.front()};
+    }
+
+    // Binary search for the closest pose
+    auto it = std::lower_bound(px4_pose_queue_.begin(), px4_pose_queue_.end(), target_time,
+                              [](const PX4Pose &pose, const ros::Time &time) {
+                                  return pose.timestamp < time;
+                              });
+
+    // Handle edge cases
+    if (it == px4_pose_queue_.begin()) {
+        return {px4_pose_queue_.front(), *(px4_pose_queue_.begin() + 1)};
+    }
+    if (it == px4_pose_queue_.end()) {
+        return {*(px4_pose_queue_.end() - 2), px4_pose_queue_.back()};
+    }
+
+    // Return the pair of poses that bracket the target time
+    return {*(it - 1), *it};
+}
+
+Sophus::SE3d OdometryServer::InterpolatePose(const PX4Pose &pose1, const PX4Pose &pose2,
+                                             const ros::Time &target_time) const {
+    // 处理时间戳在两个位姿之前的情况
+    if (target_time <= pose1.timestamp) {
+        return pose1.pose;
+    }
+    
+    // 处理时间戳在两个位姿之后的情况
+    if (target_time >= pose2.timestamp) {
+        return pose2.pose;
+    }
+    
+    // 计算插值比例
+    double total_duration = (pose2.timestamp - pose1.timestamp).toSec();
+    double target_duration = (target_time - pose1.timestamp).toSec();
+    double alpha = target_duration / total_duration;
+
+    // 插值计算平移部分
+    Eigen::Vector3d translation = (1 - alpha) * pose1.pose.translation() + alpha * pose2.pose.translation();
+
+    // 插值计算旋转部分（使用SLERP）
+    Eigen::Quaterniond q1 = pose1.pose.so3().unit_quaternion();
+    Eigen::Quaterniond q2 = pose2.pose.so3().unit_quaternion();
+    Eigen::Quaterniond q_interp = q1.slerp(alpha, q2);
+
+    return Sophus::SE3d(q_interp, translation);
+}
+
+void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg) {
+    // Check if we have enough poses in the queue
+    if (px4_pose_queue_.size() < MIN_PX4_POSE_QUEUE_SIZE) {
+        ROS_WARN_THROTTLE(1.0, "Waiting for enough PX4 poses (current: %zu, required: %zu)",
+                         px4_pose_queue_.size(), MIN_PX4_POSE_QUEUE_SIZE);
+        return;
+    }
+
+    const auto cloud_frame_id = msg->header.frame_id;
+    const auto points = PointCloud2ToEigen(msg);
+    const auto timestamps = [&]() -> std::vector<double> {
+        if (!config_.deskew) return {};
+        return GetTimestamps(msg);
+    }();
+
+    // 获取点云帧的起始时间和结束时间（结束时间 = 起始时间 + 0.1秒）
+    ros::Time frame_start_time = msg->header.stamp;
+    ros::Time frame_end_time = frame_start_time + ros::Duration(0.1);
+    ros::Time frame_mid_time = frame_start_time + ros::Duration(0.05);
+
+    // 查找最近的位姿对
+    std::pair<PX4Pose, PX4Pose> start_pose_pair = FindNearestPoses(frame_start_time);
+    std::pair<PX4Pose, PX4Pose> end_pose_pair = FindNearestPoses(frame_end_time);
+    std::pair<PX4Pose, PX4Pose> mid_pose_pair = FindNearestPoses(frame_mid_time);
+    
+    // 插值计算精确的位姿
+    Sophus::SE3d start_px4_pose = InterpolatePose(start_pose_pair.first, start_pose_pair.second, frame_start_time);
+    Sophus::SE3d finish_px4_pose = InterpolatePose(end_pose_pair.first, end_pose_pair.second, frame_end_time);
+    Sophus::SE3d mid_pose_px4 = InterpolatePose(mid_pose_pair.first, mid_pose_pair.second, frame_mid_time);
+
+    // 使用起始位姿和结束位姿进行点云去畸变和配准
+    const auto &[planar_points, non_planar_points] = odometry_.RegisterFrame(points, timestamps, start_px4_pose, finish_px4_pose);
+
+    // 获取配准后的位姿
+    const Sophus::SE3d genz_pose = odometry_.poses().back();
+
+    // 计算并发布vision_pose
+    geometry_msgs::PoseStamped vision_pose_msg;
+    vision_pose_msg.header.stamp = frame_mid_time;
+    vision_pose_msg.header.frame_id = odom_frame_;
+
+    if (odometry_.poses().size() >= 2) {
+        // 计算poses_向量最后一个位姿和倒数第二个位姿的差
+        Sophus::SE3d pose_diff = odometry_.poses().back() * odometry_.poses()[odometry_.poses().size() - 2].inverse();
+        // 将这个差值加到中间时间的位姿上
+        Sophus::SE3d vision_pose = pose_diff * mid_pose_px4;
+        vision_pose_msg.pose = tf2::sophusToPose(vision_pose);
+    } else {
+        // 如果poses_向量中只有一个元素，使用一半的位姿差
+        Sophus::SE3d pose_diff = odometry_.poses().back() * start_px4_pose.inverse();
+        // 计算差值的一半
+        Sophus::SE3d half_diff = Sophus::SE3d::exp(0.5 * pose_diff.log());
+        // 将半个差值加到起始位姿上
+        Sophus::SE3d vision_pose = half_diff * start_px4_pose;
+        vision_pose_msg.pose = tf2::sophusToPose(vision_pose);
+    }
+
+    vision_pose_publisher_.publish(vision_pose_msg);
+
+    // Publish other messages as before
+    PublishOdometry(genz_pose, msg->header.stamp, cloud_frame_id);
+    if (publish_debug_clouds_) {
+        PublishClouds(msg->header.stamp, cloud_frame_id, planar_points, non_planar_points);
+    }
 }
 
 Sophus::SE3d OdometryServer::LookupTransform(const std::string &target_frame,
@@ -112,37 +246,6 @@ Sophus::SE3d OdometryServer::LookupTransform(const std::string &target_frame,
     ROS_WARN("Failed to find tf between %s and %s. Reason=%s", target_frame.c_str(),
              source_frame.c_str(), err_msg.c_str());
     return {};
-}
-
-void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg) {
-    const auto cloud_frame_id = msg->header.frame_id;
-    const auto points = PointCloud2ToEigen(msg);
-    const auto timestamps = [&]() -> std::vector<double> {
-        if (!config_.deskew) return {};
-        return GetTimestamps(msg);
-    }();
-    const auto egocentric_estimation = (base_frame_.empty() || base_frame_ == cloud_frame_id);
-
-    // Register frame, main entry point to GenZ-ICP pipeline
-    const auto &[planar_points, non_planar_points] = odometry_.RegisterFrame(points, timestamps);
-
-    // Compute the pose using GenZ, ego-centric to the LiDAR
-    const Sophus::SE3d genz_pose = odometry_.poses().back();
-
-    // If necessary, transform the ego-centric pose to the specified base_link/base_footprint frame
-    const auto pose = [&]() -> Sophus::SE3d {
-        if (egocentric_estimation) return genz_pose;
-        const Sophus::SE3d cloud2base = LookupTransform(base_frame_, cloud_frame_id);
-        return cloud2base * genz_pose * cloud2base.inverse();
-    }();
-
-    // Spit the current estimated pose to ROS msgs
-    PublishOdometry(pose, msg->header.stamp, cloud_frame_id);
-
-    // Publishing this clouds is a bit costly, so do it only if we are debugging
-    if (publish_debug_clouds_) {
-        PublishClouds(msg->header.stamp, cloud_frame_id, planar_points, non_planar_points);
-    }
 }
 
 void OdometryServer::PublishOdometry(const Sophus::SE3d &pose,

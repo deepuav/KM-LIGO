@@ -54,6 +54,47 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     return RegisterFrame(deskew_frame);
 }
 
+GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vector3d> &frame,
+                                                    const std::vector<double> &timestamps,
+                                                    const Sophus::SE3d &start_pose,
+                                                    const Sophus::SE3d &end_pose) {
+    const auto &deskew_frame = [&]() -> std::vector<Eigen::Vector3d> {
+        if (!config_.deskew || timestamps.empty()) return frame;
+        return DeSkewScan(frame, timestamps, start_pose, end_pose);
+    }();
+
+    // Preprocess the input cloud
+    const auto &cropped_frame = Preprocess(deskew_frame, config_.max_range, config_.min_range);
+
+    // Adapt voxel size based on LOCUS 2.0's adaptive voxel grid filter
+    static double voxel_size = config_.voxel_size; // Initial voxel size
+    const auto source_tmp = genz_icp::VoxelDownsample(cropped_frame, voxel_size);
+    double adaptive_voxel_size = genz_icp::Clamp(voxel_size * static_cast<double>(source_tmp.size()) / static_cast<double>(config_.desired_num_voxelized_points), 0.02, 2.0);
+
+    // Re-voxelize using the adaptive voxel size
+    const auto &[source, frame_downsample] = Voxelize(cropped_frame, adaptive_voxel_size);
+    voxel_size = adaptive_voxel_size; // Save for the next frame
+
+    // Get motion prediction and adaptive_threshold
+    const double sigma = GetAdaptiveThreshold();
+
+    // 计算中间位姿作为初始猜测值
+    // 使用SE3插值方法计算中间位姿
+    const auto mid_pose = start_pose * Sophus::SE3d::exp(0.5 * (start_pose.inverse() * end_pose).log());
+
+    // Run GenZ-ICP，使用中间位姿作为初始猜测值
+    const auto &[new_pose, planar_points, non_planar_points] = registration_.RegisterFrame(source,         //
+                                                          local_map_,     //
+                                                          mid_pose,       //
+                                                          3.0 * sigma,    //
+                                                          sigma / 3.0);
+    const auto model_deviation = mid_pose.inverse() * new_pose;
+    adaptive_threshold_.UpdateModelDeviation(model_deviation);
+    local_map_.Update(frame_downsample, new_pose);
+    poses_.push_back(new_pose);
+    return {planar_points, non_planar_points};
+}
+
 GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vector3d> &frame) {
     // Preprocess the input cloud
     const auto &cropped_frame = Preprocess(frame, config_.max_range, config_.min_range);
