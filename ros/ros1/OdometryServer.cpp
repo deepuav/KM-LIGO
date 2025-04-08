@@ -194,11 +194,35 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     Sophus::SE3d finish_px4_pose = InterpolatePose(end_pose_pair.first, end_pose_pair.second, frame_end_time);
     Sophus::SE3d mid_pose_px4 = InterpolatePose(mid_pose_pair.first, mid_pose_pair.second, frame_mid_time);
 
+    // 输出位姿信息
+    ROS_INFO("==========位姿信息==========");
+    ROS_INFO("start_px4_pose:  [%8.3f, %8.3f, %8.3f] [%6.3f, %6.3f, %6.3f, %6.3f]",
+             start_px4_pose.translation().x(), start_px4_pose.translation().y(), start_px4_pose.translation().z(),
+             start_px4_pose.so3().unit_quaternion().x(), start_px4_pose.so3().unit_quaternion().y(),
+             start_px4_pose.so3().unit_quaternion().z(), start_px4_pose.so3().unit_quaternion().w());
+    
+    ROS_INFO("mid_pose_px4:    [%8.3f, %8.3f, %8.3f] [%6.3f, %6.3f, %6.3f, %6.3f]",
+             mid_pose_px4.translation().x(), mid_pose_px4.translation().y(), mid_pose_px4.translation().z(),
+             mid_pose_px4.so3().unit_quaternion().x(), mid_pose_px4.so3().unit_quaternion().y(),
+             mid_pose_px4.so3().unit_quaternion().z(), mid_pose_px4.so3().unit_quaternion().w());
+    
+    ROS_INFO("finish_px4_pose: [%8.3f, %8.3f, %8.3f] [%6.3f, %6.3f, %6.3f, %6.3f]",
+             finish_px4_pose.translation().x(), finish_px4_pose.translation().y(), finish_px4_pose.translation().z(),
+             finish_px4_pose.so3().unit_quaternion().x(), finish_px4_pose.so3().unit_quaternion().y(),
+             finish_px4_pose.so3().unit_quaternion().z(), finish_px4_pose.so3().unit_quaternion().w());
+
     // 使用起始位姿和结束位姿进行点云去畸变和配准
     const auto &[planar_points, non_planar_points] = odometry_.RegisterFrame(points, timestamps, start_px4_pose, finish_px4_pose);
 
     // 获取配准后的位姿
     const Sophus::SE3d genz_pose = odometry_.poses().back();
+    
+    // 输出GenZ-ICP计算的位姿
+    ROS_INFO("genz_pose:       [%8.3f, %8.3f, %8.3f] [%6.3f, %6.3f, %6.3f, %6.3f]",
+             genz_pose.translation().x(), genz_pose.translation().y(), genz_pose.translation().z(),
+             genz_pose.so3().unit_quaternion().x(), genz_pose.so3().unit_quaternion().y(),
+             genz_pose.so3().unit_quaternion().z(), genz_pose.so3().unit_quaternion().w());
+    ROS_INFO("============================");
 
     // 计算并发布vision_pose
     geometry_msgs::PoseStamped vision_pose_msg;
