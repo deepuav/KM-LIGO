@@ -23,15 +23,6 @@
   <arg name="max_num_iterations" default="100"/>
   <arg name="convergence_criterion" default="0.0001"/>
 
-  <!-- Add static transforms to connect TF tree -->
-  <!-- 从base_link到rslidar的静态变换 -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_rslidar"
-        args="0 0 0.04 0 0 0 base_link rslidar" />
-        
-  <!-- 从base_link到base_link_frd的静态变换 (FRD: Forward-Right-Down) -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_base_link_frd"
-        args="0 0 0 0 0 0 base_link base_link_frd" />
-
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
     <!-- ROS params -->
