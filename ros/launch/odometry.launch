@@ -5,7 +5,7 @@
   <arg name="topic" default="/rslidar_points"/>
   <arg name="odom_frame" default="odom"/>
   <arg name="base_frame" default="base_link"/>
-  <arg name="publish_odom_tf" default="true"/>
+  <arg name="publish_odom_tf" default="false"/>
   <arg name="visualize" default="true"/>
 
   <!-- GenZ-ICP parameter sets -->
@@ -26,6 +26,10 @@
   <!-- 添加静态TF转换，将rslidar与base_link关联 -->
   <node pkg="tf2_ros" type="static_transform_publisher" name="rslidar_to_base_link" 
         args="0 0 -0.04 0 0 0 rslidar base_link" />
+
+  <!-- 添加静态TF转换，将odom与rslidar关联 -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="odom_to_rslidar" 
+        args="0 0 0 0 0 0 odom rslidar" />
 
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
