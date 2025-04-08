@@ -86,7 +86,7 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     // Initialize publishers
     odom_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/genz/odometry", queue_size_);
     traj_publisher_ = pnh_.advertise<nav_msgs::Path>("/genz/trajectory", queue_size_);
-    mavros_odometry_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/mavros/odometry/out", queue_size_);
+    odometry_out_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/mavros/odometry/out", queue_size_);
     if (publish_debug_clouds_) {
         map_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/local_map", queue_size_);
         planar_points_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/planar_points", queue_size_);
@@ -235,13 +235,29 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
              genz_pose.so3().unit_quaternion().y(), genz_pose.so3().unit_quaternion().z());
     ROS_INFO("=================");
 
-    // 发布到/mavros/odometry/out话题
-    nav_msgs::Odometry mavros_odom_msg;
-    mavros_odom_msg.header.stamp = frame_mid_time;
-    mavros_odom_msg.header.frame_id = odom_frame_;
-    mavros_odom_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
-    mavros_odom_msg.pose.pose = tf2::sophusToPose(genz_pose);
-    mavros_odometry_publisher_.publish(mavros_odom_msg);
+    // 发布到 /mavros/odometry/out 话题
+    nav_msgs::Odometry odometry_out_msg;
+    odometry_out_msg.header.stamp = frame_mid_time;
+    odometry_out_msg.header.frame_id = odom_frame_;
+    odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
+    
+    // 设置位姿
+    odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
+    
+    // 设置协方差（设置为对角阵，表示各维度之间不相关）
+    // 位置协方差（xyz）设为较小值
+    for (int i = 0; i < 3; ++i) {
+        odometry_out_msg.pose.covariance[i*6 + i] = 0.01;  // 位置协方差 (x, y, z)
+    }
+    // 旋转协方差（rpy）设为较小值
+    for (int i = 3; i < 6; ++i) {
+        odometry_out_msg.pose.covariance[i*6 + i] = 0.001; // 旋转协方差 (roll, pitch, yaw)
+    }
+    
+    // 不设置速度信息（默认为0）
+    
+    // 发布到 /mavros/odometry/out 话题
+    odometry_out_publisher_.publish(odometry_out_msg);
 
     // Publish other messages as before
     PublishOdometry(genz_pose, msg->header.stamp, cloud_frame_id);
