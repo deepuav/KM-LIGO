@@ -27,9 +27,9 @@
   <node pkg="tf2_ros" type="static_transform_publisher" name="rslidar_to_base_link" 
         args="0 0 -0.04 3.14159 3.14159 0 rslidar base_link" />
         
-  <!-- 添加初始odom到base_link的静态变换，确保TF树连通，后续会被动态变换覆盖 -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="odom_to_base_link_init" 
-        args="0 0 0 0 0 0 odom base_link" />
+  <!-- 添加初始odom到base_link的静态变换，确保TF树连通 -->
+  <node pkg="tf" type="static_transform_publisher" name="odom_to_base_link_static" 
+        args="0 0 0 0 0 0 odom base_link 10" />
 
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
