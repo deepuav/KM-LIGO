@@ -205,21 +205,8 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     vision_pose_msg.header.stamp = frame_mid_time;
     vision_pose_msg.header.frame_id = odom_frame_;
 
-    if (odometry_.poses().size() >= 2) {
-        // 计算poses_向量最后一个位姿和倒数第二个位姿的差
-        Sophus::SE3d pose_diff = odometry_.poses().back() * odometry_.poses()[odometry_.poses().size() - 2].inverse();
-        // 将这个差值加到中间时间的位姿上
-        Sophus::SE3d vision_pose = pose_diff * mid_pose_px4;
-        vision_pose_msg.pose = tf2::sophusToPose(vision_pose);
-    } else {
-        // 如果poses_向量中只有一个元素，使用一半的位姿差
-        Sophus::SE3d pose_diff = odometry_.poses().back() * start_px4_pose.inverse();
-        // 计算差值的一半
-        Sophus::SE3d half_diff = Sophus::SE3d::exp(0.5 * pose_diff.log());
-        // 将半个差值加到起始位姿上
-        Sophus::SE3d vision_pose = half_diff * start_px4_pose;
-        vision_pose_msg.pose = tf2::sophusToPose(vision_pose);
-    }
+    // 直接使用poses_向量最后一个位姿
+    vision_pose_msg.pose = tf2::sophusToPose(genz_pose);
 
     vision_pose_publisher_.publish(vision_pose_msg);
 
