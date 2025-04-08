@@ -25,7 +25,7 @@
 
   <!-- 添加静态TF转换，将rslidar与base_link关联 -->
   <node pkg="tf2_ros" type="static_transform_publisher" name="rslidar_to_base_link" 
-        args="0 0 -0.04 0 0 0 base_link rslidar" />
+        args="0 0 0.04 0 0 0 base_link rslidar" />
 
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
