@@ -390,18 +390,18 @@ void OdometryServer::PublishClouds(const ros::Time &stamp,
                                    const std::string &cloud_frame_id,
                                    const std::vector<Eigen::Vector3d> &planar_points,
                                    const std::vector<Eigen::Vector3d> &non_planar_points) {
-    // 使用统一的odom坐标系头部
-    std_msgs::Header odom_header;
-    odom_header.stamp = stamp;
-    odom_header.frame_id = odom_frame_;
+    // 使用与原始点云相同的坐标系(通常是rslidar)
+    std_msgs::Header cloud_header;
+    cloud_header.stamp = stamp;
+    cloud_header.frame_id = cloud_frame_id; // 使用原始点云的坐标系
 
     // 获取最新的地图数据
     const auto genz_map = odometry_.LocalMap();
 
-    // 始终使用odom坐标系发布点云
-    planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, odom_header));
-    non_planar_points_publisher_.publish(*EigenToPointCloud2(non_planar_points, odom_header));
-    map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
+    // 始终使用原始点云坐标系发布点云，使它们跟随机器人移动
+    planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, cloud_header));
+    non_planar_points_publisher_.publish(*EigenToPointCloud2(non_planar_points, cloud_header));
+    map_publisher_.publish(*EigenToPointCloud2(genz_map, cloud_header));
 }
 
 }  // namespace genz_icp_ros
