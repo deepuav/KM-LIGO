@@ -390,22 +390,66 @@ void OdometryServer::PublishClouds(const ros::Time &stamp,
                                    const std::string &cloud_frame_id,
                                    const std::vector<Eigen::Vector3d> &planar_points,
                                    const std::vector<Eigen::Vector3d> &non_planar_points) {
-    // 为了解决坐标系不一致问题，我们需要为所有点云使用固定坐标系odom
     std_msgs::Header odom_header;
     odom_header.stamp = stamp;
-    odom_header.frame_id = odom_frame_; // 使用odom固定坐标系
+    odom_header.frame_id = odom_frame_;
 
-    std_msgs::Header cloud_header;
-    cloud_header.stamp = stamp;
-    cloud_header.frame_id = cloud_frame_id; // 使用原始点云的坐标系
-
-    // 获取最新的地图数据
+    // Publish map
     const auto genz_map = odometry_.LocalMap();
 
-    // 处理后的点云使用odom坐标系发布，使其位置固定
+    if (!publish_odom_tf_) {
+        // debugging happens in an egocentric world
+        std_msgs::Header cloud_header;
+        cloud_header.stamp = stamp;
+        cloud_header.frame_id = cloud_frame_id;
+
+        map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
+        planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, cloud_header));
+        non_planar_points_publisher_.publish(*EigenToPointCloud2(non_planar_points, cloud_header));
+
+        return;
+    }
+
+    // 如果传输到tf树，我们需要知道点云的确切位置
+    const auto cloud2odom = LookupTransform(odom_frame_, cloud_frame_id);
+    
+    // 检查cloud2odom变换是否为单位变换（无效变换）
+    if (cloud2odom.translation().norm() < 1e-6 && 
+        cloud2odom.so3().log().norm() < 1e-6) {
+        // cloud2odom变换无效，使用cloud_frame_id作为frame_id发布点云
+        std_msgs::Header cloud_header;
+        cloud_header.stamp = stamp;
+        cloud_header.frame_id = cloud_frame_id;
+        
+        // 使用cloud_header发布平面点和非平面点
+        planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, cloud_header));
+        non_planar_points_publisher_.publish(*EigenToPointCloud2(non_planar_points, cloud_header));
+        
+        // 直接使用cloud_header发布地图
+        map_publisher_.publish(*EigenToPointCloud2(genz_map, cloud_header));
+        
+        // 提前返回
+        return;
+    }
+    
+    // 变换有效，使用odom_header发布平面点和非平面点
     planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, odom_header));
     non_planar_points_publisher_.publish(*EigenToPointCloud2(non_planar_points, odom_header));
-    map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
+
+    if (!base_frame_.empty()) {
+        const Sophus::SE3d cloud2base = LookupTransform(base_frame_, cloud_frame_id);
+        // 检查变换是否为单位变换（无效变换）
+        if (cloud2base.translation().norm() < 1e-6 && 
+            cloud2base.so3().log().norm() < 1e-6) {
+            // 变换无效，直接使用odom_header发布地图
+            map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
+        } else {
+            // 变换有效，使用变换后发布地图
+            map_publisher_.publish(*EigenToPointCloud2(genz_map, cloud2base, odom_header));
+        }
+    } else {
+        map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
+    }
 }
 
 }  // namespace genz_icp_ros
