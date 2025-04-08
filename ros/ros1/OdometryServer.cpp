@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 #include <algorithm>
+#include <map>
 
 // GenZ-ICP-ROS
 #include "OdometryServer.hpp"
@@ -322,6 +323,9 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
 Sophus::SE3d OdometryServer::LookupTransform(const std::string &target_frame,
                                              const std::string &source_frame) const {
     std::string err_msg;
+    static std::map<std::string, ros::Time> last_warn_time;
+    std::string frame_pair = target_frame + "-" + source_frame;
+    
     if (tf2_buffer_._frameExists(source_frame) &&  //
         tf2_buffer_._frameExists(target_frame) &&  //
         tf2_buffer_.canTransform(target_frame, source_frame, ros::Time(0), &err_msg)) {
@@ -329,12 +333,26 @@ Sophus::SE3d OdometryServer::LookupTransform(const std::string &target_frame,
             auto tf = tf2_buffer_.lookupTransform(target_frame, source_frame, ros::Time(0));
             return tf2::transformToSophus(tf);
         } catch (tf2::TransformException &ex) {
-            ROS_WARN("%s", ex.what());
+            // 限制警告频率，每10秒最多输出一次
+            ros::Time now = ros::Time::now();
+            if (!last_warn_time.count(frame_pair) || 
+                (now - last_warn_time[frame_pair]).toSec() > 10.0) {
+                ROS_WARN("%s", ex.what());
+                last_warn_time[frame_pair] = now;
+            }
+        }
+    } else {
+        // 限制警告频率，每10秒最多输出一次
+        ros::Time now = ros::Time::now();
+        if (!last_warn_time.count(frame_pair) || 
+            (now - last_warn_time[frame_pair]).toSec() > 10.0) {
+            ROS_WARN("Failed to find tf between %s and %s. Reason=%s", target_frame.c_str(),
+                    source_frame.c_str(), err_msg.c_str());
+            last_warn_time[frame_pair] = now;
         }
     }
-    ROS_WARN("Failed to find tf between %s and %s. Reason=%s", target_frame.c_str(),
-             source_frame.c_str(), err_msg.c_str());
-    return {};
+    // 返回单位变换（不进行任何转换）
+    return Sophus::SE3d();
 }
 
 void OdometryServer::PublishOdometry(const Sophus::SE3d &pose,
@@ -372,37 +390,18 @@ void OdometryServer::PublishClouds(const ros::Time &stamp,
                                    const std::string &cloud_frame_id,
                                    const std::vector<Eigen::Vector3d> &planar_points,
                                    const std::vector<Eigen::Vector3d> &non_planar_points) {
+    // 使用统一的odom坐标系头部
     std_msgs::Header odom_header;
     odom_header.stamp = stamp;
     odom_header.frame_id = odom_frame_;
 
-    // Publish map
+    // 获取最新的地图数据
     const auto genz_map = odometry_.LocalMap();
 
-    if (!publish_odom_tf_) {
-        // debugging happens in an egocentric world
-        std_msgs::Header cloud_header;
-        cloud_header.stamp = stamp;
-        cloud_header.frame_id = cloud_frame_id;
-
-        map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
-        planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, cloud_header));
-        non_planar_points_publisher_.publish(*EigenToPointCloud2(non_planar_points, cloud_header));
-
-        return;
-    }
-
-    // If transmitting to tf tree we know where the clouds are exactly
-    const auto cloud2odom = LookupTransform(odom_frame_, cloud_frame_id);
+    // 始终使用odom坐标系发布点云
     planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, odom_header));
     non_planar_points_publisher_.publish(*EigenToPointCloud2(non_planar_points, odom_header));
-
-    if (!base_frame_.empty()) {
-        const Sophus::SE3d cloud2base = LookupTransform(base_frame_, cloud_frame_id);
-        map_publisher_.publish(*EigenToPointCloud2(genz_map, cloud2base, odom_header));
-    } else {
-        map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
-    }
+    map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
 }
 
 }  // namespace genz_icp_ros
