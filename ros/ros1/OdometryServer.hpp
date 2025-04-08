@@ -99,8 +99,7 @@ private:
     ros::Publisher traj_publisher_;
     ros::Publisher planar_points_publisher_;
     ros::Publisher non_planar_points_publisher_;
-    ros::Publisher vision_pose_publisher_;
-    ros::Publisher odom_out_publisher_;
+    ros::Publisher mavros_odometry_publisher_;
     nav_msgs::Path path_msg_;
 
     /// GenZ-ICP
@@ -115,6 +114,11 @@ private:
     std::deque<PX4Pose> px4_pose_queue_;
     static constexpr size_t MAX_PX4_POSE_QUEUE_SIZE = 200;
     static constexpr size_t MIN_PX4_POSE_QUEUE_SIZE = 30;
+    
+    /// 上一帧中间位姿和时间戳，用于计算速度
+    Sophus::SE3d last_mid_pose_px4_;
+    ros::Time last_frame_mid_time_;
+    bool has_last_frame_ = false;
 };
 
 }  // namespace genz_icp_ros
