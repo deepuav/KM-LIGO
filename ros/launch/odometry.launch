@@ -35,6 +35,17 @@
   <node pkg="tf" type="static_transform_publisher" name="map_to_odom" 
         args="0 0 0 0 0 0 map odom 100" />
 
+  <!-- 4. 添加原始点云坐标系转换节点 -->
+  <node pkg="nodelet" type="nodelet" name="pcl_manager" args="manager" output="screen" if="false"/>
+  
+  <!-- 预处理点云坐标系 -->
+  <node pkg="nodelet" type="nodelet" name="points_transform" 
+        args="load pcl/transform_nodelet pcl_manager" if="false">
+    <remap from="~input" to="/rslidar_points"/>
+    <remap from="~output" to="/rslidar_points_odom"/>
+    <param name="target_frame" value="odom"/>
+  </node>
+
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
     <!-- ROS params -->
