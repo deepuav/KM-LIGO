@@ -238,8 +238,8 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     // 发布到 /mavros/odometry/out 话题
     nav_msgs::Odometry odometry_out_msg;
     odometry_out_msg.header.stamp = frame_mid_time;
-    odometry_out_msg.header.frame_id = odom_frame_;
-    odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
+    odometry_out_msg.header.frame_id = "odom";  // 使用固定的"odom"作为frame_id，与mavros兼容
+    odometry_out_msg.child_frame_id = "base_link";  // 使用固定的"base_link"作为child_frame_id，与mavros兼容
     
     // 设置位姿
     odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
