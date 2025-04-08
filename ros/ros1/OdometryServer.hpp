@@ -99,7 +99,7 @@ private:
     ros::Publisher traj_publisher_;
     ros::Publisher planar_points_publisher_;
     ros::Publisher non_planar_points_publisher_;
-    ros::Publisher vision_pose_publisher_;
+    ros::Publisher mavros_odometry_publisher_;
     nav_msgs::Path path_msg_;
 
     /// GenZ-ICP

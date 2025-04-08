@@ -86,7 +86,7 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     // Initialize publishers
     odom_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/genz/odometry", queue_size_);
     traj_publisher_ = pnh_.advertise<nav_msgs::Path>("/genz/trajectory", queue_size_);
-    vision_pose_publisher_ = pnh_.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", queue_size_);
+    mavros_odometry_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/mavros/odometry/out", queue_size_);
     if (publish_debug_clouds_) {
         map_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/local_map", queue_size_);
         planar_points_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/planar_points", queue_size_);
@@ -235,15 +235,13 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
              genz_pose.so3().unit_quaternion().y(), genz_pose.so3().unit_quaternion().z());
     ROS_INFO("=================");
 
-    // 计算并发布vision_pose
-    geometry_msgs::PoseStamped vision_pose_msg;
-    vision_pose_msg.header.stamp = frame_mid_time;
-    vision_pose_msg.header.frame_id = odom_frame_;
-
-    // 直接使用poses_向量最后一个位姿
-    vision_pose_msg.pose = tf2::sophusToPose(genz_pose);
-
-    vision_pose_publisher_.publish(vision_pose_msg);
+    // 发布到/mavros/odometry/out话题
+    nav_msgs::Odometry mavros_odom_msg;
+    mavros_odom_msg.header.stamp = frame_mid_time;
+    mavros_odom_msg.header.frame_id = odom_frame_;
+    mavros_odom_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
+    mavros_odom_msg.pose.pose = tf2::sophusToPose(genz_pose);
+    mavros_odometry_publisher_.publish(mavros_odom_msg);
 
     // Publish other messages as before
     PublishOdometry(genz_pose, msg->header.stamp, cloud_frame_id);
