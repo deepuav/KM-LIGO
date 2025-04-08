@@ -24,11 +24,8 @@
   <arg name="convergence_criterion" default="0.0001"/>
 
   <!-- 添加静态TF转换，将rslidar与base_link关联 -->
-  <!-- 如果需要调整方向，可以修改这里的roll(绕X轴)、pitch(绕Y轴)、yaw(绕Z轴)参数 -->
-  <!-- 例如：roll=3.14159表示绕X轴旋转180度 -->
-  <!-- 测试不同的组合找到正确的旋转方向 -->
   <node pkg="tf2_ros" type="static_transform_publisher" name="rslidar_to_base_link" 
-        args="0 0 -0.04 0 0 3.14159 rslidar base_link" />
+        args="0 0 -0.04 3.14159 3.14159 3.14159 rslidar base_link" />
 
   <!-- 添加静态TF转换，将odom与rslidar关联 -->
   <node pkg="tf2_ros" type="static_transform_publisher" name="odom_to_rslidar" 
