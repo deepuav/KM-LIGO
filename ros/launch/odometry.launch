@@ -33,7 +33,7 @@
         
   <!-- 添加点云话题帧ID转换节点，使点云帧从rslidar变为base_link -->
   <node pkg="topic_tools" type="transform" name="cloud_frame_transformer"
-        args="/rslidar_points /rslidar_points_base_link sensor_msgs/PointCloud2 'changeFrame(m, \"base_link\")' --import sensor_msgs geometry_msgs rospy tf" />
+        args="/rslidar_points /rslidar_points_base_link sensor_msgs/PointCloud2 'changeFrame(m, &quot;base_link&quot;)' --import sensor_msgs geometry_msgs rospy tf" />
 
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
