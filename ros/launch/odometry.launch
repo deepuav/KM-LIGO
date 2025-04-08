@@ -30,10 +30,6 @@
   <!-- 添加初始odom到base_link的静态变换，确保TF树连通，后续会被动态变换覆盖 -->
   <node pkg="tf2_ros" type="static_transform_publisher" name="odom_to_base_link_init" 
         args="0 0 0 0 0 0 odom base_link" />
-  
-  <!-- 不再使用复杂的Python转换节点 -->
-  <!-- <node pkg="topic_tools" type="transform" name="cloud_frame_transformer"
-        args="/rslidar_points /rslidar_points_base_link sensor_msgs/PointCloud2 'changeFrame(m, &quot;base_link&quot;)' --import sensor_msgs geometry_msgs rospy tf" /> -->
 
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
