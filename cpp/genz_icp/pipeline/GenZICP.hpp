@@ -79,6 +79,11 @@ public:
                                       const std::vector<double> &timestamps,
                                       const Sophus::SE3d &start_pose,
                                       const Sophus::SE3d &end_pose);
+    Vector3dVectorTuple RegisterFrame(const std::vector<Eigen::Vector3d> &frame,
+                                      const std::vector<double> &timestamps,
+                                      const Sophus::SE3d &start_pose,
+                                      const Sophus::SE3d &mid_pose,
+                                      const Sophus::SE3d &end_pose);
     Vector3dVectorTuple Voxelize(const std::vector<Eigen::Vector3d> &frame, double voxel_size) const;
     double GetAdaptiveThreshold();
     Sophus::SE3d GetPredictionModel() const;
