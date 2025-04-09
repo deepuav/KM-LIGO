@@ -32,11 +32,11 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
-#include <nav_msgs/Odometry.h>
 
 #include <string>
 #include <deque>
 #include <geometry_msgs/PoseStamped.h>
+#include <nav_msgs/Odometry.h>
 
 namespace genz_icp_ros {
 
@@ -78,6 +78,11 @@ private:
     /// Interpolate pose between two poses
     Sophus::SE3d InterpolatePose(const PX4Pose &pose1, const PX4Pose &pose2, const ros::Time &target_time) const;
 
+    /// Calculate linear and angular velocities from two poses
+    std::pair<Eigen::Vector3d, Eigen::Vector3d> CalculateVelocities(const Sophus::SE3d &pose1, 
+                                                                   const Sophus::SE3d &pose2,
+                                                                   const double time_diff) const;
+
     /// Ros node stuff
     ros::NodeHandle nh_;
     ros::NodeHandle pnh_;
@@ -100,7 +105,7 @@ private:
     ros::Publisher traj_publisher_;
     ros::Publisher planar_points_publisher_;
     ros::Publisher non_planar_points_publisher_;
-    ros::Publisher odometry_out_publisher_;
+    ros::Publisher mavros_odom_publisher_;
     nav_msgs::Path path_msg_;
 
     /// GenZ-ICP
@@ -111,15 +116,15 @@ private:
     std::string odom_frame_{"odom"};
     std::string base_frame_{};
 
-    /// PX4 pose queue
+    /// PX4 pose queue and frame storage
     std::deque<PX4Pose> px4_pose_queue_;
     static constexpr size_t MAX_PX4_POSE_QUEUE_SIZE = 200;
     static constexpr size_t MIN_PX4_POSE_QUEUE_SIZE = 30;
-
-    /// Store previous frame's middle pose for velocity calculation
-    Sophus::SE3d prev_mid_pose_px4_;
-    ros::Time prev_mid_time_;
-    bool has_prev_mid_pose_ = false;
+    
+    /// Previous frames data for velocity calculation
+    PX4Pose prev_mid_pose_px4_;
+    ros::Time prev_frame_time_;
+    bool has_prev_data_ = false;
 };
 
 }  // namespace genz_icp_ros
