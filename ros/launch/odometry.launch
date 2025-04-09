@@ -9,7 +9,7 @@
   <arg name="visualize" default="true"/>
 
   <!-- GenZ-ICP parameter sets -->
-  <arg name="config_file" default=""/>
+  <arg name="config_file" default="corridor.yaml"/>
   <arg name="deskew" default="false"/>
   <arg name="max_range" default="100.0"/>
   <arg name="min_range" default="0.3"/>
@@ -23,17 +23,17 @@
   <arg name="max_num_iterations" default="100"/>
   <arg name="convergence_criterion" default="0.0001"/>
 
-  <!-- 1. 连接LiDAR到基座的静态变换 -->
-  <node pkg="tf" type="static_transform_publisher" name="base_link_to_rslidar" 
-        args="0 0 0.04 0 0 3.14159 base_link rslidar 100" />
+  <!-- Launch MAVROS -->
+  <include file="$(find mavros)/launch/px4.launch">
+    <arg name="fcu_url" value="/dev/ttyACM0:921600"/>
+  </include>
 
-  <!-- 2. 初始odom到base_link的静态变换，会被里程计节点更新 -->
-  <node pkg="tf" type="static_transform_publisher" name="odom_to_base_link_init" 
-        args="0 0 0 0 0 0 odom base_link 100" />
-        
-  <!-- 3. 添加map到odom的静态变换 -->
-  <node pkg="tf" type="static_transform_publisher" name="map_to_odom" 
-        args="0 0 0 0 0 0 map odom 100" />
+  <!-- Launch RSLIDAR SDK -->
+  <include file="$(find rslidar_sdk)/launch/start.launch"/>
+
+  <!-- 添加静态TF变换，简单连接激光雷达和base_link -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="rslidar_to_base_link" 
+        args="0 0 0 0 0 0 base_link rslidar" />
 
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
