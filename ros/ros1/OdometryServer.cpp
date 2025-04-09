@@ -87,7 +87,7 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     // Initialize publishers
     odom_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/genz/odometry", queue_size_);
     traj_publisher_ = pnh_.advertise<nav_msgs::Path>("/genz/trajectory", queue_size_);
-    mavros_odometry_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/mavros/odometry/out", queue_size_);
+    odometry_out_publisher_ = nh_.advertise<nav_msgs::Odometry>("/mavros/odometry/out", queue_size_);
     if (publish_debug_clouds_) {
         map_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/local_map", queue_size_);
         planar_points_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/planar_points", queue_size_);
@@ -195,123 +195,133 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     Sophus::SE3d finish_px4_pose = InterpolatePose(end_pose_pair.first, end_pose_pair.second, frame_end_time);
     Sophus::SE3d mid_pose_px4 = InterpolatePose(mid_pose_pair.first, mid_pose_pair.second, frame_mid_time);
 
-    // 使用中间位姿作为初始猜测值
-    const Sophus::SE3d initial_guess = mid_pose_px4;
-
-    // 输出位姿信息
-    ROS_INFO("=== 位姿信息 ===");
-    ROS_INFO("start_px4_pose:   trans=[%.3f, %.3f, %.3f], rot=[%.3f, %.3f, %.3f, %.3f]",
-             start_px4_pose.translation().x(), start_px4_pose.translation().y(), start_px4_pose.translation().z(),
-             start_px4_pose.so3().unit_quaternion().w(), start_px4_pose.so3().unit_quaternion().x(),
-             start_px4_pose.so3().unit_quaternion().y(), start_px4_pose.so3().unit_quaternion().z());
-    
-    ROS_INFO("mid_pose_px4:     trans=[%.3f, %.3f, %.3f], rot=[%.3f, %.3f, %.3f, %.3f]",
-             mid_pose_px4.translation().x(), mid_pose_px4.translation().y(), mid_pose_px4.translation().z(),
-             mid_pose_px4.so3().unit_quaternion().w(), mid_pose_px4.so3().unit_quaternion().x(),
-             mid_pose_px4.so3().unit_quaternion().y(), mid_pose_px4.so3().unit_quaternion().z());
-    
-    ROS_INFO("finish_px4_pose:  trans=[%.3f, %.3f, %.3f], rot=[%.3f, %.3f, %.3f, %.3f]",
-             finish_px4_pose.translation().x(), finish_px4_pose.translation().y(), finish_px4_pose.translation().z(),
-             finish_px4_pose.so3().unit_quaternion().w(), finish_px4_pose.so3().unit_quaternion().x(), 
-             finish_px4_pose.so3().unit_quaternion().y(), finish_px4_pose.so3().unit_quaternion().z());
-    
-    ROS_INFO("initial_guess:    trans=[%.3f, %.3f, %.3f], rot=[%.3f, %.3f, %.3f, %.3f]",
-             initial_guess.translation().x(), initial_guess.translation().y(), initial_guess.translation().z(),
-             initial_guess.so3().unit_quaternion().w(), initial_guess.so3().unit_quaternion().x(),
-             initial_guess.so3().unit_quaternion().y(), initial_guess.so3().unit_quaternion().z());
-
-    // 使用起始位姿、中间位姿和结束位姿进行点云去畸变和配准
-    const auto &[planar_points, non_planar_points] = odometry_.RegisterFrame(points, timestamps, 
-                                                                             start_px4_pose, 
-                                                                             mid_pose_px4, 
-                                                                             finish_px4_pose);
+    // 使用起始位姿和结束位姿进行点云去畸变和配准
+    const auto &[planar_points, non_planar_points] = odometry_.RegisterFrame(points, timestamps, start_px4_pose, finish_px4_pose);
 
     // 获取配准后的位姿
     const Sophus::SE3d genz_pose = odometry_.poses().back();
 
-    // 输出配准后的位姿
-    ROS_INFO("genz_pose:        trans=[%.3f, %.3f, %.3f], rot=[%.3f, %.3f, %.3f, %.3f]",
-             genz_pose.translation().x(), genz_pose.translation().y(), genz_pose.translation().z(),
-             genz_pose.so3().unit_quaternion().w(), genz_pose.so3().unit_quaternion().x(),
-             genz_pose.so3().unit_quaternion().y(), genz_pose.so3().unit_quaternion().z());
-    ROS_INFO("=================");
-
-    // 计算并发布mavros odometry
-    nav_msgs::Odometry mavros_odom_msg;
-    mavros_odom_msg.header.stamp = frame_mid_time;
-    mavros_odom_msg.header.frame_id = odom_frame_;
-    mavros_odom_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
+    // 计算位姿差、线速度和角速度
+    Sophus::SE3d pose_diff, vision_pose;
+    Eigen::Vector3d genz_v = Eigen::Vector3d::Zero(); // 线速度
+    Eigen::Vector3d genz_rv = Eigen::Vector3d::Zero(); // 角速度
+    Eigen::Vector3d px4_v = Eigen::Vector3d::Zero(); // PX4线速度
+    Eigen::Vector3d px4_rv = Eigen::Vector3d::Zero(); // PX4角速度
+    
+    // 计算位姿和速度
+    if (odometry_.poses().size() >= 2) {
+        // 计算poses_向量最后一个位姿和倒数第二个位姿的差
+        pose_diff = odometry_.poses().back() * odometry_.poses()[odometry_.poses().size() - 2].inverse();
+        // 计算GenZ的线速度和角速度
+        Eigen::Vector3d trans_diff = pose_diff.translation();
+        Eigen::AngleAxisd rot_diff(pose_diff.so3().matrix());
+        double dt = 0.1; // 一帧点云的时间是0.1秒
+        genz_v = trans_diff / dt;
+        genz_rv = rot_diff.axis() * rot_diff.angle() / dt;
+        
+        // 将这个差值加到中间时间的位姿上
+        vision_pose = pose_diff * mid_pose_px4;
+    } else {
+        // 如果poses_向量中只有一个元素，使用一半的位姿差
+        pose_diff = odometry_.poses().back() * start_px4_pose.inverse();
+        // 计算差值的一半
+        Sophus::SE3d half_diff = Sophus::SE3d::exp(0.5 * pose_diff.log());
+        // 将半个差值加到起始位姿上
+        vision_pose = half_diff * start_px4_pose;
+    }
+    
+    // 计算PX4的速度（如果有上一帧中间位姿）
+    if (has_prev_mid_pose_) {
+        Sophus::SE3d px4_pose_diff = mid_pose_px4 * prev_mid_pose_px4_.inverse();
+        Eigen::Vector3d px4_trans_diff = px4_pose_diff.translation();
+        Eigen::AngleAxisd px4_rot_diff(px4_pose_diff.so3().matrix());
+        double px4_dt = (frame_mid_time - prev_mid_time_).toSec();
+        if (px4_dt > 0.001) { // 防止除零
+            px4_v = px4_trans_diff / px4_dt;
+            px4_rv = px4_rot_diff.axis() * px4_rot_diff.angle() / px4_dt;
+        }
+    }
+    
+    // 存储当前中间位姿用于下次计算
+    prev_mid_pose_px4_ = mid_pose_px4;
+    prev_mid_time_ = frame_mid_time;
+    has_prev_mid_pose_ = true;
+    
+    // 计算协方差
+    // 位姿协方差：根据genz_pose和mid_pose_px4的差距计算
+    Sophus::SE3d pose_error = genz_pose * mid_pose_px4.inverse();
+    double trans_error = pose_error.translation().norm();
+    double rot_error = Eigen::AngleAxisd(pose_error.so3().matrix()).angle();
+    
+    // 线速度协方差：根据genz_v和px4_v的差距计算
+    double v_error = (genz_v - px4_v).norm();
+    
+    // 角速度协方差：根据genz_rv和px4_rv的差距计算
+    double rv_error = (genz_rv - px4_rv).norm();
+    
+    // 设置位姿协方差（使用对角阵简化）
+    Eigen::Matrix<double, 6, 6> pose_cov = Eigen::Matrix<double, 6, 6>::Identity();
+    double pos_cov_factor = 0.01 * (1.0 + trans_error); // 根据位置误差调整协方差
+    double rot_cov_factor = 0.01 * (1.0 + rot_error);   // 根据旋转误差调整协方差
+    
+    // 位置协方差 (x, y, z)
+    pose_cov(0, 0) = pos_cov_factor;
+    pose_cov(1, 1) = pos_cov_factor;
+    pose_cov(2, 2) = pos_cov_factor;
+    
+    // 旋转协方差 (roll, pitch, yaw)
+    pose_cov(3, 3) = rot_cov_factor;
+    pose_cov(4, 4) = rot_cov_factor;
+    pose_cov(5, 5) = rot_cov_factor;
+    
+    // 速度协方差
+    Eigen::Matrix<double, 6, 6> twist_cov = Eigen::Matrix<double, 6, 6>::Identity();
+    double lin_vel_cov_factor = 0.01 * (1.0 + v_error);  // 根据线速度误差调整协方差
+    double ang_vel_cov_factor = 0.01 * (1.0 + rv_error); // 根据角速度误差调整协方差
+    
+    // 线速度协方差 (vx, vy, vz)
+    twist_cov(0, 0) = lin_vel_cov_factor;
+    twist_cov(1, 1) = lin_vel_cov_factor;
+    twist_cov(2, 2) = lin_vel_cov_factor;
+    
+    // 角速度协方差 (wx, wy, wz)
+    twist_cov(3, 3) = ang_vel_cov_factor;
+    twist_cov(4, 4) = ang_vel_cov_factor;
+    twist_cov(5, 5) = ang_vel_cov_factor;
+    
+    // 发布odometry消息到/mavros/odometry/out
+    nav_msgs::Odometry odometry_out_msg;
+    odometry_out_msg.header.stamp = frame_mid_time;
+    odometry_out_msg.header.frame_id = odom_frame_;
+    odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
     
     // 设置位姿
-    mavros_odom_msg.pose.pose = tf2::sophusToPose(genz_pose);
+    odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
     
-    // 计算位姿协方差（根据genz_pose和mid_pose_px4的差距）
-    Sophus::SE3d pose_diff = genz_pose.inverse() * mid_pose_px4;
-    double position_diff = pose_diff.translation().norm();
-    double rotation_diff = pose_diff.so3().log().norm();
+    // 复制位姿协方差
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            odometry_out_msg.pose.covariance[i * 6 + j] = pose_cov(i, j);
+        }
+    }
     
-    // 位姿协方差（根据位姿差距设置）
-    double pos_cov = std::max(0.01, position_diff * 0.1); // 最小协方差为0.01
-    double rot_cov = std::max(0.01, rotation_diff * 0.1); // 最小协方差为0.01
+    // 设置线速度和角速度
+    odometry_out_msg.twist.twist.linear.x = genz_v.x();
+    odometry_out_msg.twist.twist.linear.y = genz_v.y();
+    odometry_out_msg.twist.twist.linear.z = genz_v.z();
+    odometry_out_msg.twist.twist.angular.x = genz_rv.x();
+    odometry_out_msg.twist.twist.angular.y = genz_rv.y();
+    odometry_out_msg.twist.twist.angular.z = genz_rv.z();
     
-    // 设置位姿协方差矩阵 (6x6)
-    // 顺序是 [x, y, z, rot_x, rot_y, rot_z]
-    mavros_odom_msg.pose.covariance[0] = pos_cov;  // x
-    mavros_odom_msg.pose.covariance[7] = pos_cov;  // y
-    mavros_odom_msg.pose.covariance[14] = pos_cov; // z
-    mavros_odom_msg.pose.covariance[21] = rot_cov; // rot_x
-    mavros_odom_msg.pose.covariance[28] = rot_cov; // rot_y
-    mavros_odom_msg.pose.covariance[35] = rot_cov; // rot_z
-    
-    // 计算速度
-    Eigen::Vector3d genz_v(0, 0, 0);
-    Eigen::Vector3d px4_v(0, 0, 0);
-    
-    if (odometry_.poses().size() >= 2 && has_last_frame_) {
-        // 计算GenZ ICP速度（根据最后两个位姿）
-        double dt = (frame_mid_time - last_frame_mid_time_).toSec();
-        if (dt > 0) {
-            const Sophus::SE3d& prev_pose = odometry_.poses()[odometry_.poses().size() - 2];
-            Sophus::SE3d pose_change = prev_pose.inverse() * genz_pose;
-            genz_v = pose_change.translation() / dt;
-            
-            // 计算PX4速度（根据前后两帧的中间位姿）
-            Sophus::SE3d px4_pose_change = last_mid_pose_px4_.inverse() * mid_pose_px4;
-            px4_v = px4_pose_change.translation() / dt;
-            
-            // 设置线速度
-            mavros_odom_msg.twist.twist.linear.x = genz_v.x();
-            mavros_odom_msg.twist.twist.linear.y = genz_v.y();
-            mavros_odom_msg.twist.twist.linear.z = genz_v.z();
-            
-            // 计算角速度（从旋转矩阵的差分）
-            Eigen::Vector3d angular_velocity = pose_change.so3().log() / dt;
-            mavros_odom_msg.twist.twist.angular.x = angular_velocity.x();
-            mavros_odom_msg.twist.twist.angular.y = angular_velocity.y();
-            mavros_odom_msg.twist.twist.angular.z = angular_velocity.z();
-            
-            // 根据genz_v和px4_v的差距计算速度协方差
-            Eigen::Vector3d vel_diff = genz_v - px4_v;
-            double vel_diff_norm = vel_diff.norm();
-            double vel_cov = std::max(0.01, vel_diff_norm * 0.1); // 最小协方差为0.01
-            
-            // 设置速度协方差矩阵 (6x6)
-            mavros_odom_msg.twist.covariance[0] = vel_cov;  // vx
-            mavros_odom_msg.twist.covariance[7] = vel_cov;  // vy
-            mavros_odom_msg.twist.covariance[14] = vel_cov; // vz
-            mavros_odom_msg.twist.covariance[21] = rot_cov; // ang_vx
-            mavros_odom_msg.twist.covariance[28] = rot_cov; // ang_vy
-            mavros_odom_msg.twist.covariance[35] = rot_cov; // ang_vz
+    // 复制速度协方差
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            odometry_out_msg.twist.covariance[i * 6 + j] = twist_cov(i, j);
         }
     }
     
     // 发布odometry消息
-    mavros_odometry_publisher_.publish(mavros_odom_msg);
-    
-    // 保存当前帧信息用于下一次计算
-    last_mid_pose_px4_ = mid_pose_px4;
-    last_frame_mid_time_ = frame_mid_time;
-    has_last_frame_ = true;
+    odometry_out_publisher_.publish(odometry_out_msg);
 
     // Publish other messages as before
     PublishOdometry(genz_pose, msg->header.stamp, cloud_frame_id);
