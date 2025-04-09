@@ -2,7 +2,7 @@
 # If this config doesn't work stably in your env., please refer to issue #11 and parameter tuning guide in README.md
 
 # topic: /velodyne_points (set in launch file or command line)
-deskew: false
+deskew: true
 max_range: 100.0
 min_range: 0.5
 voxel_size: 0.2

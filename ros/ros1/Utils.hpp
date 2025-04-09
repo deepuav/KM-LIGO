@@ -76,12 +76,6 @@ inline Sophus::SE3d transformToSophus(const geometry_msgs::TransformStamped &tra
         Sophus::SE3d::QuaternionType(t.rotation.w, t.rotation.x, t.rotation.y, t.rotation.z),
         Sophus::SE3d::Point(t.translation.x, t.translation.y, t.translation.z));
 }
-
-inline Sophus::SE3d poseToSophus(const geometry_msgs::Pose &pose) {
-    return Sophus::SE3d(
-        Sophus::SE3d::QuaternionType(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z),
-        Sophus::SE3d::Point(pose.position.x, pose.position.y, pose.position.z));
-}
 }  // namespace tf2
 
 namespace genz_icp_ros::utils {
