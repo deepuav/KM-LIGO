@@ -65,6 +65,7 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     pnh_.param("use_px4_pose_for_deskew", config_.use_px4_pose_for_deskew, config_.use_px4_pose_for_deskew);
     pnh_.param("use_px4_pose_for_init", config_.use_px4_pose_for_init, config_.use_px4_pose_for_init);
     pnh_.param("use_px4_pose_for_map", config_.use_px4_pose_for_map, config_.use_px4_pose_for_map);
+    pnh_.param("publish_odom_to_px4", config_.publish_odom_to_px4, config_.publish_odom_to_px4);
     pnh_.param("voxel_size", config_.voxel_size, config_.max_range / 100.0);
     pnh_.param("map_cleanup_radius", config_.map_cleanup_radius, config_.max_range);
     pnh_.param("planarity_threshold", config_.planarity_threshold, config_.planarity_threshold);
@@ -276,38 +277,40 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     has_last_mid_pose_ = true;
 
     // 发布到/mavros/odometry/out话题
-    nav_msgs::Odometry odometry_out_msg;
-    odometry_out_msg.header.stamp = frame_mid_time;
-    odometry_out_msg.header.frame_id = mavros_odom_frame_;
-    odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
-    odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
-    
-    // 设置协方差
-    for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < 6; ++j) {
-            odometry_out_msg.pose.covariance[i * 6 + j] = pose_covariance(i, j);
-            odometry_out_msg.twist.covariance[i * 6 + j] = velocity_covariance(i, j);
+    if (config_.publish_odom_to_px4) {
+        nav_msgs::Odometry odometry_out_msg;
+        odometry_out_msg.header.stamp = frame_mid_time;
+        odometry_out_msg.header.frame_id = mavros_odom_frame_;
+        odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
+        odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
+        
+        // 设置协方差
+        for (int i = 0; i < 6; ++i) {
+            for (int j = 0; j < 6; ++j) {
+                odometry_out_msg.pose.covariance[i * 6 + j] = pose_covariance(i, j);
+                odometry_out_msg.twist.covariance[i * 6 + j] = velocity_covariance(i, j);
+            }
         }
-    }
-    
-    // 计算并设置速度
-    if (odometry_.poses().size() >= 2) {
-        Sophus::SE3d vel_pose = odometry_.poses()[odometry_.poses().size() - 2].inverse() * odometry_.poses().back();
-        double dt = 0.1; // 假设每帧间隔0.1秒
         
-        // 线速度
-        odometry_out_msg.twist.twist.linear.x = vel_pose.translation().x() / dt;
-        odometry_out_msg.twist.twist.linear.y = vel_pose.translation().y() / dt;
-        odometry_out_msg.twist.twist.linear.z = vel_pose.translation().z() / dt;
+        // 计算并设置速度
+        if (odometry_.poses().size() >= 2) {
+            Sophus::SE3d vel_pose = odometry_.poses()[odometry_.poses().size() - 2].inverse() * odometry_.poses().back();
+            double dt = 0.1; // 假设每帧间隔0.1秒
+            
+            // 线速度
+            odometry_out_msg.twist.twist.linear.x = vel_pose.translation().x() / dt;
+            odometry_out_msg.twist.twist.linear.y = vel_pose.translation().y() / dt;
+            odometry_out_msg.twist.twist.linear.z = vel_pose.translation().z() / dt;
+            
+            // 角速度 (从旋转矩阵提取角速度)
+            Eigen::Vector3d angular_velocity = vel_pose.so3().log() / dt;
+            odometry_out_msg.twist.twist.angular.x = angular_velocity.x();
+            odometry_out_msg.twist.twist.angular.y = angular_velocity.y();
+            odometry_out_msg.twist.twist.angular.z = angular_velocity.z();
+        }
         
-        // 角速度 (从旋转矩阵提取角速度)
-        Eigen::Vector3d angular_velocity = vel_pose.so3().log() / dt;
-        odometry_out_msg.twist.twist.angular.x = angular_velocity.x();
-        odometry_out_msg.twist.twist.angular.y = angular_velocity.y();
-        odometry_out_msg.twist.twist.angular.z = angular_velocity.z();
+        odometry_out_publisher_.publish(odometry_out_msg);
     }
-    
-    odometry_out_publisher_.publish(odometry_out_msg);
 
     // 发布其他消息
     PublishOdometry(genz_pose, msg->header.stamp, cloud_frame_id);
