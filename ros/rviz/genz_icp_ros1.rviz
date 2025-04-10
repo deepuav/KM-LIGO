@@ -7,17 +7,11 @@ Panels:
         - /Global Options1
         - /PointCloud21
         - /local_map1/Autocompute Value Bounds1
-        - /base_link_frame1
-        - /trajectory1
-        - /Odometry1
         - /Odometry1/Shape1
-        - /rslidar_points1/Status1
-        - /TF1
         - /TF1/Frames1
-        - /TF1/Frames1/base_link1
         - /TF1/Tree1
-        - /TF1/Tree1/odom1
-        - /TF1/Tree1/odom1/base_link1
+        - /Odometry2/Shape1
+        - /Odometry3/Shape1
       Splitter Ratio: 0.36079248785972595
     Tree Height: 824
   - Class: rviz/Selection
@@ -131,13 +125,13 @@ Visualization Manager:
       Value: true
     - Alpha: 1
       Class: rviz/Axes
-      Enabled: false
+      Enabled: true
       Length: 2
       Name: odometry_frame
       Radius: 0.10000000149011612
       Reference Frame: odom
       Show Trail: false
-      Value: false
+      Value: true
     - Alpha: 1
       Class: rviz/Axes
       Enabled: true
@@ -248,9 +242,13 @@ Visualization Manager:
         map_ned:
           Value: true
         odom:
+          Value: false
+        odom_mav:
           Value: true
         odom_ned:
-          Value: true
+          Value: false
+        rslidar:
+          Value: false
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -258,14 +256,103 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        odom:
-          base_link:
-            base_link_frd:
+        odom_mav:
+          odom:
+            base_link:
+              base_link_frd:
+                {}
+              rslidar:
+                {}
+            odom_ned:
               {}
-          odom_ned:
-            {}
       Update Interval: 0
       Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz/Pose
+      Color: 255; 25; 0
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Pose
+      Queue Size: 10
+      Shaft Length: 10
+      Shaft Radius: 0.05000000074505806
+      Shape: Arrow
+      Topic: /mavros/local_position/pose
+      Unreliable: false
+      Value: true
+    - Angle Tolerance: 0.10000000149011612
+      Class: rviz/Odometry
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.30000001192092896
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: false
+      Keep: 100
+      Name: Odometry
+      Position Tolerance: 0.10000000149011612
+      Queue Size: 10
+      Shape:
+        Alpha: 1
+        Axes Length: 1
+        Axes Radius: 0.10000000149011612
+        Color: 255; 25; 0
+        Head Length: 0.30000001192092896
+        Head Radius: 0.10000000149011612
+        Shaft Length: 20
+        Shaft Radius: 0.05000000074505806
+        Value: Arrow
+      Topic: /mavros/local_position/odom
+      Unreliable: false
+      Value: false
+    - Angle Tolerance: 0.10000000149011612
+      Class: rviz/Odometry
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.30000001192092896
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: false
+      Keep: 100
+      Name: Odometry
+      Position Tolerance: 0.10000000149011612
+      Queue Size: 10
+      Shape:
+        Alpha: 1
+        Axes Length: 1
+        Axes Radius: 0.10000000149011612
+        Color: 238; 51; 119
+        Head Length: 0.30000001192092896
+        Head Radius: 0.10000000149011612
+        Shaft Length: 10
+        Shaft Radius: 0.30000001192092896
+        Value: Arrow
+      Topic: /mavros/odometry/out
+      Unreliable: false
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
@@ -294,7 +381,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 8.054844856262207
+      Distance: 8.941495895385742
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -302,17 +389,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.9501907825469971
-        Y: 2.828200340270996
-        Z: -2.456026792526245
-      Focal Shape Fixed Size: true
+        X: 9.412123680114746
+        Y: 0.17627574503421783
+        Z: -0.1510559469461441
+      Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7947970628738403
+      Pitch: 0.22539912164211273
       Target Frame: odom
-      Yaw: 4.313183307647705
+      Yaw: 5.03855037689209
     Saved: ~
 Window Geometry:
   Displays:
@@ -331,4 +418,4 @@ Window Geometry:
     collapsed: false
   Width: 2488
   X: 72
-  Y: 286
+  Y: 263

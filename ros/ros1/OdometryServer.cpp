@@ -55,6 +55,8 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     : nh_(nh), pnh_(pnh), tf2_listener_(tf2_ros::TransformListener(tf2_buffer_)) {
     pnh_.param("base_frame", base_frame_, base_frame_);
     pnh_.param("odom_frame", odom_frame_, odom_frame_);
+    pnh_.param("mavros_odom_frame", mavros_odom_frame_, mavros_odom_frame_);
+    pnh_.param("lidar_frame", lidar_frame_, lidar_frame_);
     pnh_.param("publish_odom_tf", publish_odom_tf_, false);
     pnh_.param("visualize", publish_debug_clouds_, publish_debug_clouds_);
     pnh_.param("max_range", config_.max_range, config_.max_range);
@@ -98,6 +100,10 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
 
     // publish odometry msg
     ROS_INFO("GenZ-ICP ROS 1 Odometry Node Initialized");
+    ROS_INFO("MAVROS odom frame: %s", mavros_odom_frame_.c_str());
+    ROS_INFO("GENZ odom frame: %s", odom_frame_.c_str());
+    ROS_INFO("Base frame: %s", base_frame_.c_str());
+    ROS_INFO("LiDAR frame: %s", lidar_frame_.c_str());
 }
 
 void OdometryServer::PX4PoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
@@ -216,7 +222,8 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
         return;
     }
 
-    const auto cloud_frame_id = msg->header.frame_id;
+    // 使用配置的激光雷达坐标系而不是消息中的坐标系
+    const auto cloud_frame_id = lidar_frame_;
     const auto points = PointCloud2ToEigen(msg);
     const auto timestamps = [&]() -> std::vector<double> {
         if (!config_.deskew) return {};
@@ -239,7 +246,8 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     Sophus::SE3d mid_px4_pose = InterpolatePose(mid_pose_pair1, mid_pose_pair2, frame_mid_time);
 
     // 使用外部位姿进行去畸变和初始位姿估计
-    const auto &[planar_points, non_planar_points] = odometry_.RegisterFrame(points, timestamps, start_px4_pose, end_px4_pose);
+    const auto [registered_frame, registered_timestamps] = odometry_.RegisterFrame(
+        points, timestamps, start_px4_pose, end_px4_pose, mid_px4_pose);
 
     // 获取GenZ-ICP计算的位姿
     const Sophus::SE3d genz_pose = odometry_.poses().back();
@@ -267,21 +275,9 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     // 发布到/mavros/odometry/out话题
     nav_msgs::Odometry odometry_out_msg;
     odometry_out_msg.header.stamp = frame_mid_time;
-    odometry_out_msg.header.frame_id = "odom"; // 使用MAVROS期望的odom帧
-    odometry_out_msg.child_frame_id = base_frame_;
-    
-    // 创建位姿副本
-    Sophus::SE3d mavros_pose = genz_pose;
-    
-    // 只有当odom和base_link之间有已知的90度差异时才进行转换
-    // 这里我们仅旋转位置，保持方向不变，因为方向可能已经被正确处理
-    Eigen::Vector3d pos = mavros_pose.translation();
-    // 应用-90度旋转（顺时针旋转）
-    double x_new = pos.y();
-    double y_new = -pos.x();
-    mavros_pose.translation() = Eigen::Vector3d(x_new, y_new, pos.z());
-    
-    odometry_out_msg.pose.pose = tf2::sophusToPose(mavros_pose);
+    odometry_out_msg.header.frame_id = mavros_odom_frame_;
+    odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
+    odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
     
     // 设置协方差
     for (int i = 0; i < 6; ++i) {
@@ -313,7 +309,7 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     // 发布其他消息
     PublishOdometry(genz_pose, msg->header.stamp, cloud_frame_id);
     if (publish_debug_clouds_) {
-        PublishClouds(msg->header.stamp, cloud_frame_id, planar_points, non_planar_points);
+        PublishClouds(msg->header.stamp, cloud_frame_id, registered_frame, registered_timestamps);
     }
 }
 
@@ -345,7 +341,7 @@ void OdometryServer::PublishOdometry(const Sophus::SE3d &pose,
         geometry_msgs::TransformStamped transform_msg;
         transform_msg.header.stamp = stamp;
         transform_msg.header.frame_id = odom_frame_;
-        transform_msg.child_frame_id = base_frame_;
+        transform_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
         transform_msg.transform = tf2::sophusToTransform(pose);
         tf_broadcaster_.sendTransform(transform_msg);
     }
@@ -362,6 +358,7 @@ void OdometryServer::PublishOdometry(const Sophus::SE3d &pose,
     nav_msgs::Odometry odom_msg;
     odom_msg.header.stamp = stamp;
     odom_msg.header.frame_id = odom_frame_;
+    odom_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
     odom_msg.pose.pose = tf2::sophusToPose(pose);
     odom_publisher_.publish(odom_msg);
 }
@@ -381,7 +378,7 @@ void OdometryServer::PublishClouds(const ros::Time &stamp,
         // debugging happens in an egocentric world
         std_msgs::Header cloud_header;
         cloud_header.stamp = stamp;
-        cloud_header.frame_id = cloud_frame_id;
+        cloud_header.frame_id = lidar_frame_;
 
         map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));
         planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, cloud_header));
@@ -391,12 +388,12 @@ void OdometryServer::PublishClouds(const ros::Time &stamp,
     }
 
     // If transmitting to tf tree we know where the clouds are exactly
-    const auto cloud2odom = LookupTransform(odom_frame_, cloud_frame_id);
+    const auto cloud2odom = LookupTransform(odom_frame_, lidar_frame_);
     planar_points_publisher_.publish(*EigenToPointCloud2(planar_points, odom_header));
     non_planar_points_publisher_.publish(*EigenToPointCloud2(non_planar_points, odom_header));
 
     if (!base_frame_.empty()) {
-        const Sophus::SE3d cloud2base = LookupTransform(base_frame_, cloud_frame_id);
+        const Sophus::SE3d cloud2base = LookupTransform(base_frame_, lidar_frame_);
         map_publisher_.publish(*EigenToPointCloud2(genz_map, cloud2base, odom_header));
     } else {
         map_publisher_.publish(*EigenToPointCloud2(genz_map, odom_header));

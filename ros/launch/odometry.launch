@@ -4,18 +4,20 @@
   <arg name="bagfile" default=""/>
   <arg name="topic" default="/rslidar_points"/>
   <arg name="odom_frame" default="odom"/>
+  <arg name="mavros_odom_frame" default="odom_mav"/>
   <arg name="base_frame" default="base_link"/>
+  <arg name="lidar_frame" default="rslidar"/>
   <arg name="publish_odom_tf" default="true"/>
   <arg name="visualize" default="true"/>
 
   <!-- GenZ-ICP parameter sets -->
   <arg name="config_file" default="corridor.yaml"/>
-  <arg name="deskew" default="false"/>
+  <arg name="deskew" default="true"/>
   <arg name="max_range" default="100.0"/>
   <arg name="min_range" default="0.3"/>
   <arg name="voxel_size" default="0.3"/>
   <arg name="map_cleanup_radius" default=""/>
-  <arg name="desired_num_voxelized_points" default="2000"/>
+  <arg name="desired_num_voxelized_points" default="6000"/>
   <arg name="planarity_threshold" default="0.2"/>
   <arg name="max_points_per_voxel" default="1"/>
   <arg name="initial_threshold" default="2.0"/>
@@ -30,17 +32,23 @@
 
   <!-- Launch RSLIDAR SDK -->
   <include file="$(find rslidar_sdk)/launch/start.launch"/>
-
-  <!-- 添加静态TF变换，简单连接激光雷达和base_link -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="rslidar_to_base_link" 
-        args="0 0 0 0 0 0 base_link rslidar" />
+  
+  <!-- 添加LiDAR到base_link的静态变换 -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="lidar_to_base_link" 
+        args="0 0 -0.04 0 0 0 $(arg base_frame) $(arg lidar_frame)" />
+        
+  <!-- 添加odom_mav到odom的静态变换 -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="mavros_odom_to_odom" 
+        args="0 0 0 0 0 0 $(arg mavros_odom_frame) $(arg odom_frame)" />
 
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
     <!-- ROS params -->
     <remap from="pointcloud_topic" to="$(arg topic)"/>
     <param name="odom_frame" value="$(arg odom_frame)"/>
+    <param name="mavros_odom_frame" value="$(arg mavros_odom_frame)"/>
     <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="lidar_frame" value="$(arg lidar_frame)"/>
     <param name="publish_odom_tf" value="$(arg publish_odom_tf)"/>
     <param name="visualize" value="$(arg visualize)"/>
     
