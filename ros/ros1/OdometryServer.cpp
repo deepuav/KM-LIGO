@@ -86,8 +86,8 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     // Initialize subscribers
     pointcloud_sub_ = nh_.subscribe<sensor_msgs::PointCloud2>("pointcloud_topic", queue_size_,
                                                               &OdometryServer::RegisterFrame, this);
-    px4_pose_sub_ = nh_.subscribe<geometry_msgs::PoseStamped>("/mavros/local_position/pose", queue_size_,
-                                                              &OdometryServer::PX4PoseCallback, this);
+    px4_pose_sub_ = nh_.subscribe<nav_msgs::Odometry>("/mavros/local_position/odom", queue_size_,
+                                                      &OdometryServer::PX4PoseCallback, this);
 
     // Initialize publishers
     odom_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/genz/odometry", queue_size_);
@@ -110,15 +110,19 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     ROS_INFO("LiDAR frame: %s", lidar_frame_.c_str());
 }
 
-void OdometryServer::PX4PoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
+void OdometryServer::PX4PoseCallback(const nav_msgs::Odometry::ConstPtr &msg) {
     PX4Pose px4_pose;
     px4_pose.timestamp = msg->header.stamp;
     
     // Convert ROS Pose to Sophus::SE3d
-    Eigen::Vector3d translation(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
-    Eigen::Quaterniond rotation(msg->pose.orientation.w, msg->pose.orientation.x, 
-                               msg->pose.orientation.y, msg->pose.orientation.z);
+    Eigen::Vector3d translation(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
+    Eigen::Quaterniond rotation(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, 
+                               msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
     px4_pose.pose = Sophus::SE3d(rotation, translation);
+    
+    // 存储速度信息（可选，根据需要）
+    px4_pose.linear_velocity = Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z);
+    px4_pose.angular_velocity = Eigen::Vector3d(msg->twist.twist.angular.x, msg->twist.twist.angular.y, msg->twist.twist.angular.z);
 
     // Add to queue and maintain size limit
     px4_pose_queue_.push_back(px4_pose);
@@ -168,8 +172,29 @@ Sophus::SE3d OdometryServer::InterpolatePose(const PX4Pose &pose1, const PX4Pose
     return Sophus::SE3d(q_interp, translation);
 }
 
+Eigen::Vector3d OdometryServer::InterpolateLinearVelocity(const PX4Pose &pose1, const PX4Pose &pose2,
+                                                        const ros::Time &target_time) const {
+    double total_duration = (pose2.timestamp - pose1.timestamp).toSec();
+    double target_duration = (target_time - pose1.timestamp).toSec();
+    double alpha = target_duration / total_duration;
+
+    // 线性插值速度
+    return (1 - alpha) * pose1.linear_velocity + alpha * pose2.linear_velocity;
+}
+
+Eigen::Vector3d OdometryServer::InterpolateAngularVelocity(const PX4Pose &pose1, const PX4Pose &pose2,
+                                                         const ros::Time &target_time) const {
+    double total_duration = (pose2.timestamp - pose1.timestamp).toSec();
+    double target_duration = (target_time - pose1.timestamp).toSec();
+    double alpha = target_duration / total_duration;
+
+    // 线性插值角速度
+    return (1 - alpha) * pose1.angular_velocity + alpha * pose2.angular_velocity;
+}
+
 void OdometryServer::CalculateCovariance(const Sophus::SE3d &genz_pose, const Sophus::SE3d &mid_pose, 
                                         const Sophus::SE3d &last_mid_pose, double dt,
+                                        const ros::Time &frame_start_time,
                                         Eigen::Matrix<double, 6, 6> &pose_covariance,
                                         Eigen::Matrix<double, 6, 6> &velocity_covariance) {
     // 计算位姿差异，作为位姿协方差的基础
@@ -199,15 +224,22 @@ void OdometryServer::CalculateCovariance(const Sophus::SE3d &genz_pose, const So
     genz_vel.block<3, 1>(0, 0) = genz_vel_pose.translation() / dt;
     genz_vel.block<3, 1>(3, 0) = genz_vel_pose.so3().log() / dt;
 
-    // 计算PX4的速度
-    Sophus::SE3d px4_vel_pose = last_mid_pose.inverse() * mid_pose;
+    // 使用与位姿插值相同的方法获取速度 - 使用帧起始时间
+    auto [pose_pair1, pose_pair2] = FindNearestPoses(frame_start_time);
+    
+    // 创建PX4速度向量
     Eigen::Matrix<double, 6, 1> px4_vel;
-    px4_vel.block<3, 1>(0, 0) = px4_vel_pose.translation() / dt;
-    px4_vel.block<3, 1>(3, 0) = px4_vel_pose.so3().log() / dt;
-
+    
+    // 插值计算线速度和角速度
+    Eigen::Vector3d linear_vel = InterpolateLinearVelocity(pose_pair1, pose_pair2, frame_start_time);
+    Eigen::Vector3d angular_vel = InterpolateAngularVelocity(pose_pair1, pose_pair2, frame_start_time);
+    
+    px4_vel.block<3, 1>(0, 0) = linear_vel;
+    px4_vel.block<3, 1>(3, 0) = angular_vel;
+    
     // 计算速度差异，作为速度协方差的基础
     Eigen::Matrix<double, 6, 1> vel_diff = genz_vel - px4_vel;
-
+    
     // 计算速度协方差
     velocity_covariance = Eigen::Matrix<double, 6, 6>::Identity();
     for (int i = 0; i < 6; ++i) {
@@ -261,7 +293,7 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     if (has_last_mid_pose_) {
         double dt = (frame_mid_time - last_mid_time_).toSec();
         if (dt > 0) {
-            CalculateCovariance(genz_pose, mid_px4_pose, last_mid_pose_, dt, pose_covariance, velocity_covariance);
+            CalculateCovariance(genz_pose, mid_px4_pose, last_mid_pose_, dt, frame_start_time, pose_covariance, velocity_covariance);
         } else {
             pose_covariance = Eigen::Matrix<double, 6, 6>::Identity() * 1e-6;
             velocity_covariance = Eigen::Matrix<double, 6, 6>::Identity() * 1e-6;
@@ -294,19 +326,20 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
         
         // 计算并设置速度
         if (odometry_.poses().size() >= 2) {
-            Sophus::SE3d vel_pose = odometry_.poses()[odometry_.poses().size() - 2].inverse() * odometry_.poses().back();
-            double dt = 0.1; // 假设每帧间隔0.1秒
+            // 使用与位姿插值相同的方法获取速度 - 使用帧起始时间
+            auto [pose_pair1, pose_pair2] = FindNearestPoses(frame_start_time);
             
-            // 线速度
-            odometry_out_msg.twist.twist.linear.x = vel_pose.translation().x() / dt;
-            odometry_out_msg.twist.twist.linear.y = vel_pose.translation().y() / dt;
-            odometry_out_msg.twist.twist.linear.z = vel_pose.translation().z() / dt;
+            // 插值计算线速度和角速度
+            Eigen::Vector3d linear_vel = InterpolateLinearVelocity(pose_pair1, pose_pair2, frame_start_time);
+            Eigen::Vector3d angular_vel = InterpolateAngularVelocity(pose_pair1, pose_pair2, frame_start_time);
             
-            // 角速度 (从旋转矩阵提取角速度)
-            Eigen::Vector3d angular_velocity = vel_pose.so3().log() / dt;
-            odometry_out_msg.twist.twist.angular.x = angular_velocity.x();
-            odometry_out_msg.twist.twist.angular.y = angular_velocity.y();
-            odometry_out_msg.twist.twist.angular.z = angular_velocity.z();
+            // 设置速度信息
+            odometry_out_msg.twist.twist.linear.x = linear_vel.x();
+            odometry_out_msg.twist.twist.linear.y = linear_vel.y();
+            odometry_out_msg.twist.twist.linear.z = linear_vel.z();
+            odometry_out_msg.twist.twist.angular.x = angular_vel.x();
+            odometry_out_msg.twist.twist.angular.y = angular_vel.y();
+            odometry_out_msg.twist.twist.angular.z = angular_vel.z();
         }
         
         odometry_out_publisher_.publish(odometry_out_msg);

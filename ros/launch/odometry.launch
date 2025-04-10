@@ -1,10 +1,21 @@
 <?xml version="1.0"?>
+<!-- 
+  GenZ-ICP启动文件
+  坐标系说明:
+  - mavros_odom_frame: 默认为"map"，需与MAVROS中local_position插件的frame_id一致
+  - odom_frame: 默认为"odom"，GenZ-ICP发布里程计的坐标系
+  - base_frame: 默认为"base_link"，机器人基座坐标系
+  - lidar_frame: 默认为"rslidar"，激光雷达坐标系
+
+  TF树结构:
+  map(mavros) -> odom(genz) -> base_link -> rslidar
+-->
 <launch>
   <!-- ROS paramaters -->
   <arg name="bagfile" default=""/>
   <arg name="topic" default="/rslidar_points"/>
   <arg name="odom_frame" default="odom"/>
-  <arg name="mavros_odom_frame" default="odom_mav"/>
+  <arg name="mavros_odom_frame" default="map"/>
   <arg name="base_frame" default="base_link"/>
   <arg name="lidar_frame" default="rslidar"/>
   <arg name="publish_odom_tf" default="true"/>
@@ -41,8 +52,8 @@
   <node pkg="tf2_ros" type="static_transform_publisher" name="lidar_to_base_link" 
         args="0 0 0 0 0 0 $(arg base_frame) $(arg lidar_frame)" />
         
-  <!-- 添加odom_mav到odom的静态变换 -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="mavros_odom_to_odom" 
+  <!-- 添加map到odom的静态变换 -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" 
         args="0 0 0 0 0 0 $(arg mavros_odom_frame) $(arg odom_frame)" />
 
   <!-- Odometry node -->

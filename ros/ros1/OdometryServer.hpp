@@ -43,6 +43,8 @@ namespace genz_icp_ros {
 struct PX4Pose {
     Sophus::SE3d pose;
     ros::Time timestamp;
+    Eigen::Vector3d linear_velocity;
+    Eigen::Vector3d angular_velocity;
 };
 
 class OdometryServer {
@@ -69,18 +71,25 @@ private:
     Sophus::SE3d LookupTransform(const std::string &target_frame,
                                  const std::string &source_frame) const;
 
-    /// Callback for PX4 local position pose
-    void PX4PoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg);
+    /// Callback for PX4 local position odometry
+    void PX4PoseCallback(const nav_msgs::Odometry::ConstPtr &msg);
 
     /// Find nearest poses for interpolation
     std::pair<PX4Pose, PX4Pose> FindNearestPoses(const ros::Time &target_time) const;
 
     /// Interpolate pose between two poses
     Sophus::SE3d InterpolatePose(const PX4Pose &pose1, const PX4Pose &pose2, const ros::Time &target_time) const;
+    
+    /// Interpolate velocity between two poses
+    Eigen::Vector3d InterpolateLinearVelocity(const PX4Pose &pose1, const PX4Pose &pose2, const ros::Time &target_time) const;
+    
+    /// Interpolate angular velocity between two poses
+    Eigen::Vector3d InterpolateAngularVelocity(const PX4Pose &pose1, const PX4Pose &pose2, const ros::Time &target_time) const;
 
     /// Calculate pose and velocity covariance
     void CalculateCovariance(const Sophus::SE3d &genz_pose, const Sophus::SE3d &mid_pose, 
                              const Sophus::SE3d &last_mid_pose, double dt,
+                             const ros::Time &frame_start_time,
                              Eigen::Matrix<double, 6, 6> &pose_covariance,
                              Eigen::Matrix<double, 6, 6> &velocity_covariance);
 
