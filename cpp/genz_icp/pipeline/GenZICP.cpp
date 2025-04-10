@@ -35,13 +35,47 @@
 namespace genz_icp::pipeline {
 
 GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vector3d> &frame,
+                                                    const std::vector<double> &timestamps) {
+    const auto &deskew_frame = [&]() -> std::vector<Eigen::Vector3d> {
+        if (!config_.deskew || timestamps.empty()) return frame;
+        // TODO(Nacho) Add some asserts here to sanitize the timestamps
+
+        //  If not enough poses for the estimation, do not de-skew
+        const size_t N = poses().size();
+        if (N <= 2) return frame;
+
+        // Estimate linear and angular velocities
+        const auto &start_pose = poses_[N - 2];
+        const auto &finish_pose = poses_[N - 1];
+
+        return DeSkewScan(frame, timestamps, start_pose, finish_pose);
+        
+    }();
+    return RegisterFrame(deskew_frame);
+}
+
+GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vector3d> &frame,
                                                     const std::vector<double> &timestamps,
                                                     const Sophus::SE3d &start_pose,
                                                     const Sophus::SE3d &end_pose,
                                                     const Sophus::SE3d &mid_pose) {
     const auto &deskew_frame = [&]() -> std::vector<Eigen::Vector3d> {
         if (!config_.deskew || timestamps.empty()) return frame;
-        return DeSkewScan(frame, timestamps, start_pose, end_pose);
+        
+        // 根据参数决定使用px4位姿还是位姿队列中的位姿进行去畸变
+        if (config_.use_px4_pose_for_deskew) {
+            // 使用传入的px4位姿进行去畸变
+            return DeSkewScan(frame, timestamps, start_pose, end_pose);
+        } else {
+            // 使用内部存储的位姿队列进行去畸变
+            const size_t N = poses().size();
+            if (N <= 2) return frame;
+            
+            const auto &pose_start = poses_[N - 2];
+            const auto &pose_end = poses_[N - 1];
+            
+            return DeSkewScan(frame, timestamps, pose_start, pose_end);
+        }
     }();
 
     // Preprocess the input cloud
@@ -59,23 +93,75 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     // Get motion prediction and adaptive_threshold
     const double sigma = GetAdaptiveThreshold();
 
-    // Use the middle pose as initial guess
-    // const auto mid_pose = start_pose * Sophus::SE3d::exp(0.5 * (start_pose.inverse() * end_pose).log());
+    // 根据参数决定使用何种初始位姿猜测
+    Sophus::SE3d initial_guess;
+    if (config_.use_px4_pose_for_init) {
+        // 使用传入的PX4中间位姿作为初始猜测
+        initial_guess = mid_pose;
+    } else {
+        // 使用GenZ-ICP原始的运动预测方法
+        const auto prediction = GetPredictionModel();
+        const auto last_pose = !poses_.empty() ? poses_.back() : Sophus::SE3d();
+        initial_guess = last_pose * prediction;
+    }
 
     // Run GenZ-ICP
     const auto &[new_pose, planar_points, non_planar_points] = registration_.RegisterFrame(source,         //
                                                           local_map_,     //
-                                                          mid_pose,       //
+                                                          initial_guess,  //
                                                           3.0 * sigma,    //
                                                           sigma / 3.0);
-    const auto model_deviation = mid_pose.inverse() * new_pose;
+    const auto model_deviation = initial_guess.inverse() * new_pose;
+    adaptive_threshold_.UpdateModelDeviation(model_deviation);
+    
+    // 根据参数决定使用哪个位姿更新地图
+    if (config_.use_px4_pose_for_map) {
+        // 使用PX4的中间位姿更新地图
+        local_map_.Update(frame_downsample, mid_pose);
+    } else {
+        // 使用GenZ-ICP计算的位姿更新地图
+        local_map_.Update(frame_downsample, new_pose);
+    }
+    
+    // 位姿队列始终使用new_pose更新，不受参数影响
+    poses_.push_back(new_pose);
+    
+    return {planar_points, non_planar_points};
+}
+
+GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vector3d> &frame) {
+    // Preprocess the input cloud
+    const auto &cropped_frame = Preprocess(frame, config_.max_range, config_.min_range);
+
+    // Adapt voxel size based on LOCUS 2.0's adaptive voxel grid filter
+    static double voxel_size = config_.voxel_size; // Initial voxel size
+    const auto source_tmp = genz_icp::VoxelDownsample(cropped_frame, voxel_size);
+    double adaptive_voxel_size = genz_icp::Clamp(voxel_size * static_cast<double>(source_tmp.size()) / static_cast<double>(config_.desired_num_voxelized_points), 0.02, 2.0);
+
+    // Re-voxelize using the adaptive voxel size
+    const auto &[source, frame_downsample] = Voxelize(cropped_frame, adaptive_voxel_size);
+    voxel_size = adaptive_voxel_size; // Save for the next frame
+
+    // Get motion prediction and adaptive_threshold
+    const double sigma = GetAdaptiveThreshold();
+
+    // Compute initial_guess for ICP
+    const auto prediction = GetPredictionModel();
+    const auto last_pose = !poses_.empty() ? poses_.back() : Sophus::SE3d();
+    const auto initial_guess = last_pose * prediction;
+
+    // Run GenZ-ICP
+    const auto &[new_pose, planar_points, non_planar_points] = registration_.RegisterFrame(source,         //
+                                                          local_map_,     //
+                                                          initial_guess,  //
+                                                          3.0 * sigma,    //
+                                                          sigma / 3.0);
+    const auto model_deviation = initial_guess.inverse() * new_pose;
     adaptive_threshold_.UpdateModelDeviation(model_deviation);
     local_map_.Update(frame_downsample, new_pose);
     poses_.push_back(new_pose);
     return {planar_points, non_planar_points};
 }
-
-
 
 GenZICP::Vector3dVectorTuple GenZICP::Voxelize(const std::vector<Eigen::Vector3d> &frame, double adaptive_voxel_size) const {
     const auto frame_downsample = genz_icp::VoxelDownsample(frame, std::max(adaptive_voxel_size * 0.5, 0.02)); // localmap update

@@ -62,6 +62,9 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     pnh_.param("max_range", config_.max_range, config_.max_range);
     pnh_.param("min_range", config_.min_range, config_.min_range);
     pnh_.param("deskew", config_.deskew, config_.deskew);
+    pnh_.param("use_px4_pose_for_deskew", config_.use_px4_pose_for_deskew, config_.use_px4_pose_for_deskew);
+    pnh_.param("use_px4_pose_for_init", config_.use_px4_pose_for_init, config_.use_px4_pose_for_init);
+    pnh_.param("use_px4_pose_for_map", config_.use_px4_pose_for_map, config_.use_px4_pose_for_map);
     pnh_.param("voxel_size", config_.voxel_size, config_.max_range / 100.0);
     pnh_.param("map_cleanup_radius", config_.map_cleanup_radius, config_.max_range);
     pnh_.param("planarity_threshold", config_.planarity_threshold, config_.planarity_threshold);
