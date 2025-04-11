@@ -20,6 +20,7 @@
   <arg name="lidar_frame" default="rslidar"/>
   <arg name="publish_odom_tf" default="true"/>
   <arg name="visualize" default="true"/>
+  <arg name="scan_duration" default="0.1"/>  <!-- 激光雷达扫描一帧的时间，单位秒 -->
 
   <!-- GenZ-ICP parameter sets -->
   <arg name="config_file" default="corridor.yaml"/>
@@ -45,22 +46,16 @@
     <arg name="fcu_url" value="/dev/ttyACM0:921600"/>
   </include>
   
-  <!-- 设置 MAVROS 坐标系参数 -->
-  <param name="/mavros/local_position/frame_id" value="odom"/>
-  <param name="/mavros/local_position/tf/send" value="false"/>
-  <param name="/mavros/local_position/tf/frame_id" value="odom"/>
-  <param name="/mavros/local_position/tf/child_frame_id" value="base_link"/>
-  <param name="/mavros/local_position/tf/send_fcu" value="false"/>
-
+ 
   <!-- Launch RSLIDAR SDK -->
   <include file="$(find rslidar_sdk)/launch/start.launch"/>
   
-  <!-- 添加LiDAR到base_link的静态变换 -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="lidar_to_base_link" 
+  <!-- 添加激光雷达与基座之间的静态变换 -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_lidar" 
         args="0 0 0 0 0 0 $(arg base_frame) $(arg lidar_frame)" />
         
-  <!-- 添加odom_mav到odom的静态变换 -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" 
+  <!-- 添加MAVROS里程计坐标系到GenZ-ICP里程计坐标系的静态变换 -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="odom_mav_to_odom" 
         args="0 0 0 0 0 0 $(arg mavros_odom_frame) $(arg odom_frame)" />
 
   <!-- Odometry node -->
@@ -73,6 +68,7 @@
     <param name="lidar_frame" value="$(arg lidar_frame)"/>
     <param name="publish_odom_tf" value="$(arg publish_odom_tf)"/>
     <param name="visualize" value="$(arg visualize)"/>
+    <param name="scan_duration" value="$(arg scan_duration)"/>
     
     <!-- Conditional Parameter Loading -->
     <!-- Load parameters from config file if provided -->

@@ -137,6 +137,10 @@ private:
     Sophus::SE3d last_mid_pose_;
     ros::Time last_mid_time_;
     bool has_last_mid_pose_ = false;
+
+    // 用于记录最后发布的变换
+    ros::Time last_transform_time_;
+    Sophus::SE3d last_transform_ = Sophus::SE3d();
 };
 
 }  // namespace genz_icp_ros

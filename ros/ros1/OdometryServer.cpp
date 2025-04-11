@@ -268,8 +268,12 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
 
     // 获取点云帧的起始和结束时间
     ros::Time frame_start_time = msg->header.stamp;
-    ros::Time frame_end_time = frame_start_time + ros::Duration(0.1);  // 点云帧持续0.1秒
-    ros::Time frame_mid_time = frame_start_time + ros::Duration(0.05); // 中间时间点
+    // 使用实际的激光雷达扫描周期，而不是固定值
+    double scan_duration = 0.1;  // 默认值，可从参数服务器读取
+    pnh_.param("scan_duration", scan_duration, 0.1);
+    
+    ros::Time frame_end_time = frame_start_time + ros::Duration(scan_duration);
+    ros::Time frame_mid_time = frame_start_time + ros::Duration(scan_duration/2.0);
     
     // 获取对应时间的PX4位姿
     auto [start_pose_pair1, start_pose_pair2] = FindNearestPoses(frame_start_time);
@@ -377,12 +381,17 @@ void OdometryServer::PublishOdometry(const Sophus::SE3d &pose,
 
     // Broadcast the tf
     if (publish_odom_tf_) {
+        // 仅发布odom到base_link的变换，避免与静态变换冲突
         geometry_msgs::TransformStamped transform_msg;
         transform_msg.header.stamp = stamp;
         transform_msg.header.frame_id = odom_frame_;
         transform_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
         transform_msg.transform = tf2::sophusToTransform(pose);
         tf_broadcaster_.sendTransform(transform_msg);
+        
+        // 记录最新发布的变换时间和值，用于避免TF跳变
+        last_transform_time_ = stamp;
+        last_transform_ = pose;
     }
 
     // publish trajectory msg
