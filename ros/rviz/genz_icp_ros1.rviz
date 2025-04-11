@@ -8,6 +8,7 @@ Panels:
         - /PointCloud21
         - /local_map1/Autocompute Value Bounds1
         - /Odometry1/Shape1
+        - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
         - /Odometry2/Shape1
@@ -236,19 +237,19 @@ Visualization Manager:
         base_link:
           Value: true
         base_link_frd:
-          Value: true
+          Value: false
         map:
           Value: true
         map_ned:
           Value: true
         odom:
-          Value: false
+          Value: true
         odom_mav:
           Value: true
         odom_ned:
           Value: false
         rslidar:
-          Value: false
+          Value: true
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -357,7 +358,7 @@ Visualization Manager:
   Global Options:
     Background Color: 0; 0; 0
     Default Light: true
-    Fixed Frame: odom
+    Fixed Frame: odom_mav
     Frame Rate: 30
   Name: root
   Tools:
@@ -381,7 +382,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 8.941495895385742
+      Distance: 5.826991558074951
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -389,17 +390,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 9.412123680114746
-        Y: 0.17627574503421783
-        Z: -0.1510559469461441
+        X: 1.5871319770812988
+        Y: -0.4813171327114105
+        Z: 2.4232101440429688
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.22539912164211273
+      Pitch: 0.6403989791870117
       Target Frame: odom
-      Yaw: 5.03855037689209
+      Yaw: 3.9535417556762695
     Saved: ~
 Window Geometry:
   Displays:
@@ -418,4 +419,4 @@ Window Geometry:
     collapsed: false
   Width: 2488
   X: 72
-  Y: 263
+  Y: 226

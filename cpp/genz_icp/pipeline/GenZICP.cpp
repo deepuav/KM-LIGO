@@ -62,7 +62,7 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     const auto &deskew_frame = [&]() -> std::vector<Eigen::Vector3d> {
         if (!config_.deskew || timestamps.empty()) return frame;
         
-        // 根据参数决定使用px4位姿还是位姿队列中的位姿进行去畸变
+        // 直接使用PX4位姿进行去畸变（MAVROS已转换为ENU坐标系）
         if (config_.use_px4_pose_for_deskew) {
             // 使用传入的px4位姿进行去畸变
             return DeSkewScan(frame, timestamps, start_pose, end_pose);
@@ -93,7 +93,7 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     // Get motion prediction and adaptive_threshold
     const double sigma = GetAdaptiveThreshold();
 
-    // 根据参数决定使用何种初始位姿猜测
+    // 直接使用PX4位姿作为初始猜测（MAVROS已转换为ENU坐标系）
     Sophus::SE3d initial_guess;
     if (config_.use_px4_pose_for_init) {
         // 使用传入的PX4中间位姿作为初始猜测
@@ -114,7 +114,7 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     const auto model_deviation = initial_guess.inverse() * new_pose;
     adaptive_threshold_.UpdateModelDeviation(model_deviation);
     
-    // 根据参数决定使用哪个位姿更新地图
+    // 直接使用PX4位姿更新地图（MAVROS已转换为ENU坐标系）
     if (config_.use_px4_pose_for_map) {
         // 使用PX4的中间位姿更新地图
         local_map_.Update(frame_downsample, mid_pose);

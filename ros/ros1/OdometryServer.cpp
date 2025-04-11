@@ -114,13 +114,13 @@ void OdometryServer::PX4PoseCallback(const nav_msgs::Odometry::ConstPtr &msg) {
     PX4Pose px4_pose;
     px4_pose.timestamp = msg->header.stamp;
     
-    // Convert ROS Pose to Sophus::SE3d
+    // 直接使用MAVROS提供的ENU坐标系位姿，不需要转换
     Eigen::Vector3d translation(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
     Eigen::Quaterniond rotation(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, 
                                msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
     px4_pose.pose = Sophus::SE3d(rotation, translation);
     
-    // 存储速度信息（可选，根据需要）
+    // 直接使用MAVROS提供的ENU坐标系速度，不需要转换
     px4_pose.linear_velocity = Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z);
     px4_pose.angular_velocity = Eigen::Vector3d(msg->twist.twist.angular.x, msg->twist.twist.angular.y, msg->twist.twist.angular.z);
 

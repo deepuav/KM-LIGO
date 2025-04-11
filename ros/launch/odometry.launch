@@ -2,20 +2,20 @@
 <!-- 
   GenZ-ICP启动文件
   坐标系说明:
-  - mavros_odom_frame: 默认为"map"，需与MAVROS中local_position插件的frame_id一致
-  - odom_frame: 默认为"odom"，GenZ-ICP发布里程计的坐标系
-  - base_frame: 默认为"base_link"，机器人基座坐标系
-  - lidar_frame: 默认为"rslidar"，激光雷达坐标系
+  - mavros_odom_frame: 默认为"odom_mav"，MAVROS发布的里程计坐标系，使用ENU坐标系
+  - odom_frame: 默认为"odom"，GenZ-ICP发布里程计的坐标系，使用ENU坐标系
+  - base_frame: 默认为"base_link"，机器人基座坐标系，使用ENU坐标系
+  - lidar_frame: 默认为"rslidar"，激光雷达坐标系，跟随base_link使用ENU坐标系
 
   TF树结构:
-  map(mavros) -> odom(genz) -> base_link -> rslidar
+  odom_mav -> odom -> base_link -> rslidar
 -->
 <launch>
   <!-- ROS paramaters -->
   <arg name="bagfile" default=""/>
   <arg name="topic" default="/rslidar_points"/>
   <arg name="odom_frame" default="odom"/>
-  <arg name="mavros_odom_frame" default="map"/>
+  <arg name="mavros_odom_frame" default="odom_mav"/>
   <arg name="base_frame" default="base_link"/>
   <arg name="lidar_frame" default="rslidar"/>
   <arg name="publish_odom_tf" default="true"/>
@@ -44,6 +44,13 @@
   <include file="$(find mavros)/launch/px4.launch">
     <arg name="fcu_url" value="/dev/ttyACM0:921600"/>
   </include>
+  
+  <!-- 设置 MAVROS 坐标系参数 -->
+  <param name="/mavros/local_position/frame_id" value="odom"/>
+  <param name="/mavros/local_position/tf/send" value="false"/>
+  <param name="/mavros/local_position/tf/frame_id" value="odom"/>
+  <param name="/mavros/local_position/tf/child_frame_id" value="base_link"/>
+  <param name="/mavros/local_position/tf/send_fcu" value="false"/>
 
   <!-- Launch RSLIDAR SDK -->
   <include file="$(find rslidar_sdk)/launch/start.launch"/>
@@ -52,7 +59,7 @@
   <node pkg="tf2_ros" type="static_transform_publisher" name="lidar_to_base_link" 
         args="0 0 0 0 0 0 $(arg base_frame) $(arg lidar_frame)" />
         
-  <!-- 添加map到odom的静态变换 -->
+  <!-- 添加odom_mav到odom的静态变换 -->
   <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" 
         args="0 0 0 0 0 0 $(arg mavros_odom_frame) $(arg odom_frame)" />
 
