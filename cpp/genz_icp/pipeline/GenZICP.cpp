@@ -93,11 +93,25 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     // Get motion prediction and adaptive_threshold
     const double sigma = GetAdaptiveThreshold();
 
-    // 直接使用PX4位姿作为初始猜测（MAVROS已转换为ENU坐标系）
+    // 初始位姿猜测
     Sophus::SE3d initial_guess;
     if (config_.use_px4_pose_for_init) {
         // 使用传入的PX4中间位姿作为初始猜测
         initial_guess = mid_pose;
+    } else if (config_.use_px4_attitude_with_original_position_for_init) {
+        // 使用PX4的姿态和原始方法的位移合成初始猜测位姿
+        const auto prediction = GetPredictionModel();
+        const auto last_pose = !poses_.empty() ? poses_.back() : Sophus::SE3d();
+        const auto original_guess = last_pose * prediction;
+        
+        // 提取PX4位姿的旋转部分
+        Eigen::Quaterniond px4_rotation(mid_pose.unit_quaternion());
+        
+        // 提取原始猜测位姿的平移部分
+        Eigen::Vector3d original_position = original_guess.translation();
+        
+        // 合成新的初始猜测位姿（PX4姿态 + 原始位移）
+        initial_guess = Sophus::SE3d(px4_rotation, original_position);
     } else {
         // 使用GenZ-ICP原始的运动预测方法
         const auto prediction = GetPredictionModel();

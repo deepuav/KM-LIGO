@@ -52,7 +52,9 @@ struct GenZConfig {
     // Motion compensation
     bool deskew = false;
     bool use_px4_pose_for_deskew = true;
+    bool use_multiple_poses_for_deskew = true;
     bool use_px4_pose_for_init = true;
+    bool use_px4_attitude_with_original_position_for_init = false;
     bool use_px4_pose_for_map = false;
     bool publish_odom_to_px4 = true;
 

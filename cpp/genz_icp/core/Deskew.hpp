@@ -34,4 +34,10 @@ std::vector<Eigen::Vector3d> DeSkewScan(const std::vector<Eigen::Vector3d> &fram
                                         const Sophus::SE3d &start_pose,
                                         const Sophus::SE3d &finish_pose);
 
+/// 使用PX4位姿队列进行点云去畸变，提高精度并减少计算资源消耗
+std::vector<Eigen::Vector3d> DeSkewScanWithPoses(const std::vector<Eigen::Vector3d> &frame,
+                                               const std::vector<double> &timestamps,
+                                               const std::vector<Sophus::SE3d> &poses,
+                                               const std::vector<double> &pose_times);
+
 }  // namespace genz_icp

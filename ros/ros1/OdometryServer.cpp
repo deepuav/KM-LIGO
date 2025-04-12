@@ -63,7 +63,9 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     pnh_.param("min_range", config_.min_range, config_.min_range);
     pnh_.param("deskew", config_.deskew, config_.deskew);
     pnh_.param("use_px4_pose_for_deskew", config_.use_px4_pose_for_deskew, config_.use_px4_pose_for_deskew);
+    pnh_.param("use_multiple_poses_for_deskew", config_.use_multiple_poses_for_deskew, config_.use_multiple_poses_for_deskew);
     pnh_.param("use_px4_pose_for_init", config_.use_px4_pose_for_init, config_.use_px4_pose_for_init);
+    pnh_.param("use_px4_attitude_with_original_position_for_init", config_.use_px4_attitude_with_original_position_for_init, config_.use_px4_attitude_with_original_position_for_init);
     pnh_.param("use_px4_pose_for_map", config_.use_px4_pose_for_map, config_.use_px4_pose_for_map);
     pnh_.param("publish_odom_to_px4", config_.publish_odom_to_px4, config_.publish_odom_to_px4);
     pnh_.param("voxel_size", config_.voxel_size, config_.max_range / 100.0);
@@ -86,13 +88,14 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     // Initialize subscribers
     pointcloud_sub_ = nh_.subscribe<sensor_msgs::PointCloud2>("pointcloud_topic", queue_size_,
                                                               &OdometryServer::RegisterFrame, this);
-    px4_pose_sub_ = nh_.subscribe<nav_msgs::Odometry>("/mavros/local_position/odom", queue_size_,
+    px4_pose_sub_ = nh_.subscribe<nav_msgs::Odometry>("/mavros/odometry/in", queue_size_,
                                                       &OdometryServer::PX4PoseCallback, this);
 
     // Initialize publishers
     odom_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/genz/odometry", queue_size_);
     traj_publisher_ = pnh_.advertise<nav_msgs::Path>("/genz/trajectory", queue_size_);
     odometry_out_publisher_ = pnh_.advertise<nav_msgs::Odometry>("/mavros/odometry/out", queue_size_);
+    px4_pose_publisher_ = pnh_.advertise<geometry_msgs::PoseStamped>("/genz/px4_pose", queue_size_);
     if (publish_debug_clouds_) {
         map_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/local_map", queue_size_);
         planar_points_publisher_ = pnh_.advertise<sensor_msgs::PointCloud2>("/genz/planar_points", queue_size_);
@@ -123,6 +126,12 @@ void OdometryServer::PX4PoseCallback(const nav_msgs::Odometry::ConstPtr &msg) {
     // 直接使用MAVROS提供的ENU坐标系速度，不需要转换
     px4_pose.linear_velocity = Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z);
     px4_pose.angular_velocity = Eigen::Vector3d(msg->twist.twist.angular.x, msg->twist.twist.angular.y, msg->twist.twist.angular.z);
+
+    // 发布PX4位姿用于调试
+    geometry_msgs::PoseStamped pose_msg;
+    pose_msg.header = msg->header;
+    pose_msg.pose = msg->pose.pose;
+    px4_pose_publisher_.publish(pose_msg);
 
     // Add to queue and maintain size limit
     px4_pose_queue_.push_back(px4_pose);
@@ -190,6 +199,11 @@ Eigen::Vector3d OdometryServer::InterpolateAngularVelocity(const PX4Pose &pose1,
 
     // 线性插值角速度
     return (1 - alpha) * pose1.angular_velocity + alpha * pose2.angular_velocity;
+}
+
+std::vector<double> OdometryServer::GetTimestamps(const sensor_msgs::PointCloud2::ConstPtr &msg) const {
+    // 直接使用utils中的GetTimestamps函数
+    return utils::GetTimestamps(msg);
 }
 
 void OdometryServer::CalculateCovariance(const Sophus::SE3d &genz_pose, const Sophus::SE3d &mid_pose, 
@@ -275,19 +289,62 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     ros::Time frame_end_time = frame_start_time + ros::Duration(scan_duration);
     ros::Time frame_mid_time = frame_start_time + ros::Duration(scan_duration/2.0);
     
-    // 获取对应时间的PX4位姿
+    // 提取在帧开始和结束时间之间的所有PX4位姿
+    std::vector<Sophus::SE3d> px4_poses;
+    std::vector<double> px4_pose_times;
+    
+    // 确保至少有起始位姿和结束位姿
     auto [start_pose_pair1, start_pose_pair2] = FindNearestPoses(frame_start_time);
     auto [end_pose_pair1, end_pose_pair2] = FindNearestPoses(frame_end_time);
     auto [mid_pose_pair1, mid_pose_pair2] = FindNearestPoses(frame_mid_time);
     
-    // 插值计算精确的位姿
+    // 插值计算精确的起始和结束位姿
     Sophus::SE3d start_px4_pose = InterpolatePose(start_pose_pair1, start_pose_pair2, frame_start_time);
     Sophus::SE3d end_px4_pose = InterpolatePose(end_pose_pair1, end_pose_pair2, frame_end_time);
     Sophus::SE3d mid_px4_pose = InterpolatePose(mid_pose_pair1, mid_pose_pair2, frame_mid_time);
-
+    
+    // 查找帧时间段内的所有PX4位姿
+    for (const auto& px4_pose : px4_pose_queue_) {
+        if (px4_pose.timestamp >= frame_start_time && px4_pose.timestamp <= frame_end_time) {
+            px4_poses.push_back(px4_pose.pose);
+            // 将时间转换为相对于帧起始时间的秒数
+            px4_pose_times.push_back((px4_pose.timestamp - frame_start_time).toSec());
+        }
+    }
+    
+    // 确保位姿数组中包含起始和结束位姿
+    // 如果数组为空或第一个位姿晚于frame_start_time，添加起始位姿
+    if (px4_poses.empty() || px4_pose_times.front() > 0.001) { // 给定一个小的阈值以处理浮点误差
+        px4_poses.insert(px4_poses.begin(), start_px4_pose);
+        px4_pose_times.insert(px4_pose_times.begin(), 0.0);
+    }
+    
+    // 确保数组包含结束位姿
+    if (px4_pose_times.back() < scan_duration - 0.001) {
+        px4_poses.push_back(end_px4_pose);
+        px4_pose_times.push_back(scan_duration);
+    }
+    
     // 使用外部位姿进行去畸变和初始位姿估计
-    const auto [registered_frame, registered_timestamps] = odometry_.RegisterFrame(
-        points, timestamps, start_px4_pose, end_px4_pose, mid_px4_pose);
+    // 选择使用多个位姿的去畸变方法或原始方法
+    auto [registered_frame, registered_timestamps] = [&]() -> std::tuple<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> {
+        if (config_.use_px4_pose_for_deskew) {
+            if (config_.use_multiple_poses_for_deskew && px4_poses.size() >= 2) {
+                // 使用帧时间段内的所有位姿进行去畸变
+                ROS_DEBUG("使用多位姿去畸变，位姿数量: %zu", px4_poses.size());
+                const auto corrected_points = genz_icp::DeSkewScanWithPoses(points, timestamps, px4_poses, px4_pose_times);
+                return odometry_.RegisterFrame(corrected_points, {}, start_px4_pose, end_px4_pose, mid_px4_pose);
+            } else {
+                // 只使用起始和结束位姿进行去畸变
+                ROS_DEBUG("使用起始和结束位姿去畸变");
+                return odometry_.RegisterFrame(points, timestamps, start_px4_pose, end_px4_pose, mid_px4_pose);
+            }
+        } else {
+            // 不使用PX4位姿进行去畸变，使用GenZ-ICP内部预测
+            ROS_DEBUG("使用GenZ-ICP内部预测去畸变");
+            return odometry_.RegisterFrame(points, timestamps);
+        }
+    }();
 
     // 获取GenZ-ICP计算的位姿
     const Sophus::SE3d genz_pose = odometry_.poses().back();

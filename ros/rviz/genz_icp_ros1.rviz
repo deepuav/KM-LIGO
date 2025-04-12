@@ -11,8 +11,6 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
-        - /Odometry2/Shape1
-        - /Odometry3/Shape1
       Splitter Ratio: 0.36079248785972595
     Tree Height: 824
   - Class: rviz/Selection
@@ -258,6 +256,9 @@ Visualization Manager:
       Show Names: true
       Tree:
         odom_mav:
+          map:
+            map_ned:
+              {}
           odom:
             base_link:
               base_link_frd:
@@ -278,82 +279,12 @@ Visualization Manager:
       Head Radius: 0.10000000149011612
       Name: Pose
       Queue Size: 10
-      Shaft Length: 10
+      Shaft Length: 1
       Shaft Radius: 0.05000000074505806
-      Shape: Arrow
-      Topic: /mavros/local_position/pose
+      Shape: Axes
+      Topic: /genz/px4_pose
       Unreliable: false
       Value: true
-    - Angle Tolerance: 0.10000000149011612
-      Class: rviz/Odometry
-      Covariance:
-        Orientation:
-          Alpha: 0.5
-          Color: 255; 255; 127
-          Color Style: Unique
-          Frame: Local
-          Offset: 1
-          Scale: 1
-          Value: true
-        Position:
-          Alpha: 0.30000001192092896
-          Color: 204; 51; 204
-          Scale: 1
-          Value: true
-        Value: true
-      Enabled: false
-      Keep: 100
-      Name: Odometry
-      Position Tolerance: 0.10000000149011612
-      Queue Size: 10
-      Shape:
-        Alpha: 1
-        Axes Length: 1
-        Axes Radius: 0.10000000149011612
-        Color: 255; 25; 0
-        Head Length: 0.30000001192092896
-        Head Radius: 0.10000000149011612
-        Shaft Length: 20
-        Shaft Radius: 0.05000000074505806
-        Value: Arrow
-      Topic: /mavros/local_position/odom
-      Unreliable: false
-      Value: false
-    - Angle Tolerance: 0.10000000149011612
-      Class: rviz/Odometry
-      Covariance:
-        Orientation:
-          Alpha: 0.5
-          Color: 255; 255; 127
-          Color Style: Unique
-          Frame: Local
-          Offset: 1
-          Scale: 1
-          Value: true
-        Position:
-          Alpha: 0.30000001192092896
-          Color: 204; 51; 204
-          Scale: 1
-          Value: true
-        Value: true
-      Enabled: false
-      Keep: 100
-      Name: Odometry
-      Position Tolerance: 0.10000000149011612
-      Queue Size: 10
-      Shape:
-        Alpha: 1
-        Axes Length: 1
-        Axes Radius: 0.10000000149011612
-        Color: 238; 51; 119
-        Head Length: 0.30000001192092896
-        Head Radius: 0.10000000149011612
-        Shaft Length: 10
-        Shaft Radius: 0.30000001192092896
-        Value: Arrow
-      Topic: /mavros/odometry/out
-      Unreliable: false
-      Value: false
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
@@ -382,7 +313,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 5.826991558074951
+      Distance: 19.030933380126953
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -390,17 +321,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.5871319770812988
-        Y: -0.4813171327114105
-        Z: 2.4232101440429688
+        X: 4.063475608825684
+        Y: 5.70052433013916
+        Z: 3.9370734691619873
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6403989791870117
+      Pitch: 0.5553990602493286
       Target Frame: odom
-      Yaw: 3.9535417556762695
+      Yaw: 3.228541612625122
     Saved: ~
 Window Geometry:
   Displays:
@@ -418,5 +349,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 2488
-  X: 72
-  Y: 226
+  X: 984
+  Y: 163

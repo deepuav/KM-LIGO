@@ -116,6 +116,7 @@ private:
     ros::Publisher planar_points_publisher_;
     ros::Publisher non_planar_points_publisher_;
     ros::Publisher odometry_out_publisher_;
+    ros::Publisher px4_pose_publisher_;
     nav_msgs::Path path_msg_;
 
     /// GenZ-ICP
@@ -141,6 +142,9 @@ private:
     // 用于记录最后发布的变换
     ros::Time last_transform_time_;
     Sophus::SE3d last_transform_ = Sophus::SE3d();
+
+    // 从点云消息中提取时间戳
+    std::vector<double> GetTimestamps(const sensor_msgs::PointCloud2::ConstPtr &msg) const;
 };
 
 }  // namespace genz_icp_ros

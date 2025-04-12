@@ -1,15 +1,16 @@
 digraph G {
-"base_link" -> "rslidar"[label="Broadcaster: /lidar_to_base_link\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744245366.356 sec old)\nBuffer length: 0.000 sec\n"];
-"odom" -> "base_link"[label="Broadcaster: /mavros\nAverage rate: 244.136 Hz\nMost recent transform: 1744245366.355 ( 0.001 sec old)\nBuffer length: 5.050 sec\n"];
-"map" -> "map_ned"[label="Broadcaster: /mavros\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744245366.356 sec old)\nBuffer length: 0.000 sec\n"];
-"odom" -> "odom_ned"[label="Broadcaster: /mavros\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744245366.356 sec old)\nBuffer length: 0.000 sec\n"];
-"base_link" -> "base_link_frd"[label="Broadcaster: /mavros\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744245366.356 sec old)\nBuffer length: 0.000 sec\n"];
+"odom_mav" -> "odom"[label="Broadcaster: /odom_mav_to_odom\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744451587.356 sec old)\nBuffer length: 0.000 sec\n"];
+"base_link" -> "rslidar"[label="Broadcaster: /base_link_to_lidar\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744451587.356 sec old)\nBuffer length: 0.000 sec\n"];
+"map" -> "base_link"[label="Broadcaster: /mavros\nAverage rate: 219.155 Hz\nMost recent transform: 1744451587.352 ( 0.004 sec old)\nBuffer length: 5.047 sec\n"];
+"map" -> "map_ned"[label="Broadcaster: /mavros\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744451587.356 sec old)\nBuffer length: 0.000 sec\n"];
+"odom" -> "odom_ned"[label="Broadcaster: /mavros\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744451587.356 sec old)\nBuffer length: 0.000 sec\n"];
+"base_link" -> "base_link_frd"[label="Broadcaster: /mavros\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744451587.356 sec old)\nBuffer length: 0.000 sec\n"];
 edge [style=invis];
  subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
-"Recorded at time: 1744245366.356"[ shape=plaintext ] ;
+"Recorded at time: 1744451587.356"[ shape=plaintext ] ;
+ }->"odom_mav";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1744451587.356"[ shape=plaintext ] ;
  }->"map";
-edge [style=invis];
- subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
-"Recorded at time: 1744245366.356"[ shape=plaintext ] ;
- }->"odom";
 }
