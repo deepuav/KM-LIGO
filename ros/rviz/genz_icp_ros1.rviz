@@ -11,6 +11,7 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
+        - /Pose1
       Splitter Ratio: 0.36079248785972595
     Tree Height: 824
   - Class: rviz/Selection
@@ -270,7 +271,7 @@ Visualization Manager:
       Update Interval: 0
       Value: true
     - Alpha: 1
-      Axes Length: 1
+      Axes Length: 6
       Axes Radius: 0.10000000149011612
       Class: rviz/Pose
       Color: 255; 25; 0
@@ -313,7 +314,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 19.030933380126953
+      Distance: 16.466392517089844
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -321,17 +322,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 4.063475608825684
-        Y: 5.70052433013916
-        Z: 3.9370734691619873
+        X: 1.7834712266921997
+        Y: 2.6008360385894775
+        Z: 1.0540448427200317
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5553990602493286
+      Pitch: 0.7603988647460938
       Target Frame: odom
-      Yaw: 3.228541612625122
+      Yaw: 2.7535393238067627
     Saved: ~
 Window Geometry:
   Displays:
@@ -349,5 +350,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 2488
-  X: 984
-  Y: 163
+  X: 72
+  Y: 126
