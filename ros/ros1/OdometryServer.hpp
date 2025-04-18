@@ -125,7 +125,6 @@ private:
 
     /// Global/map coordinate frame.
     std::string odom_frame_{"odom"};
-    std::string mavros_odom_frame_{"odom_mav"};
     std::string base_frame_{};
     std::string lidar_frame_{"rslidar"};
 

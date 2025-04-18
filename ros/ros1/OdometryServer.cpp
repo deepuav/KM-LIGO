@@ -55,7 +55,6 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     : nh_(nh), pnh_(pnh), tf2_listener_(tf2_ros::TransformListener(tf2_buffer_)) {
     pnh_.param("base_frame", base_frame_, base_frame_);
     pnh_.param("odom_frame", odom_frame_, odom_frame_);
-    pnh_.param("mavros_odom_frame", mavros_odom_frame_, mavros_odom_frame_);
     pnh_.param("lidar_frame", lidar_frame_, lidar_frame_);
     pnh_.param("publish_odom_tf", publish_odom_tf_, false);
     pnh_.param("visualize", publish_debug_clouds_, publish_debug_clouds_);
@@ -107,7 +106,6 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
 
     // publish odometry msg
     ROS_INFO("GenZ-ICP ROS 1 Odometry Node Initialized");
-    ROS_INFO("MAVROS odom frame: %s", mavros_odom_frame_.c_str());
     ROS_INFO("GENZ odom frame: %s", odom_frame_.c_str());
     ROS_INFO("Base frame: %s", base_frame_.c_str());
     ROS_INFO("LiDAR frame: %s", lidar_frame_.c_str());
@@ -373,7 +371,7 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     if (config_.publish_odom_to_px4) {
         nav_msgs::Odometry odometry_out_msg;
         odometry_out_msg.header.stamp = frame_mid_time;
-        odometry_out_msg.header.frame_id = mavros_odom_frame_;
+        odometry_out_msg.header.frame_id = odom_frame_;
         odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
         odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
         

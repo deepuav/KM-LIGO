@@ -2,20 +2,22 @@
 <!-- 
   GenZ-ICP启动文件
   坐标系说明:
-  - mavros_odom_frame: 默认为"odom_mav"，MAVROS发布的里程计坐标系，使用ENU坐标系
-  - odom_frame: 默认为"odom"，GenZ-ICP发布里程计的坐标系，使用ENU坐标系
+  - odom_frame: 默认为"odom"，使用ENU坐标系，作为MAVROS和GenZ-ICP共用的里程计坐标系
+    (对应于mavros的odometry插件中的odom_parent_id_des参数)
   - base_frame: 默认为"base_link"，机器人基座坐标系，使用ENU坐标系
+    (对应于mavros的odometry插件中的odom_child_id_des参数)
   - lidar_frame: 默认为"rslidar"，激光雷达坐标系，跟随base_link使用ENU坐标系
 
   TF树结构:
-  odom_mav -> odom -> base_link -> rslidar
+  map -> odom -> base_link -> rslidar
+  
+  注意: 该配置使用mavros/odometry/in和mavros/odometry/out替代了local_position
 -->
 <launch>
   <!-- ROS paramaters -->
   <arg name="bagfile" default=""/>
   <arg name="topic" default="/rslidar_points"/>
   <arg name="odom_frame" default="odom"/>
-  <arg name="mavros_odom_frame" default="odom_mav"/>
   <arg name="base_frame" default="base_link"/>
   <arg name="lidar_frame" default="rslidar"/>
   <arg name="publish_odom_tf" default="true"/>
@@ -56,20 +58,15 @@
   <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_lidar" 
         args="0 0 0 0 0 0 $(arg base_frame) $(arg lidar_frame)" />
         
-  <!-- 添加MAVROS里程计坐标系到GenZ-ICP里程计坐标系的静态变换 -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="odom_mav_to_odom" 
-        args="0 0 0 0 0 0 $(arg mavros_odom_frame) $(arg odom_frame)" />
-
-  <!-- 添加MAVROS里程计坐标系到map的静态变换，解决TF树连接问题 -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="odom_mav_to_map" 
-        args="0 0 0 0 0 0 $(arg mavros_odom_frame) map" />
+  <!-- 添加map到odom的静态变换，解决TF树连接问题，使RVIZ可以显示/mavros/odometry/in -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" 
+        args="0 0 0 0 0 0 map $(arg odom_frame)" />
 
   <!-- Odometry node -->
   <node pkg="genz_icp" type="odometry_node" name="odometry_node" output="screen">
     <!-- ROS params -->
     <remap from="pointcloud_topic" to="$(arg topic)"/>
     <param name="odom_frame" value="$(arg odom_frame)"/>
-    <param name="mavros_odom_frame" value="$(arg mavros_odom_frame)"/>
     <param name="base_frame" value="$(arg base_frame)"/>
     <param name="lidar_frame" value="$(arg lidar_frame)"/>
     <param name="publish_odom_tf" value="$(arg publish_odom_tf)"/>
