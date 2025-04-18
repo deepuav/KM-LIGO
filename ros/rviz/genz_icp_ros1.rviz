@@ -243,8 +243,6 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
-        odom_mav:
-          Value: true
         odom_ned:
           Value: false
         rslidar:
@@ -256,10 +254,9 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        odom_mav:
-          map:
-            map_ned:
-              {}
+        map:
+          map_ned:
+            {}
           odom:
             base_link:
               base_link_frd:
@@ -290,7 +287,7 @@ Visualization Manager:
   Global Options:
     Background Color: 0; 0; 0
     Default Light: true
-    Fixed Frame: odom_mav
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -330,9 +327,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7603988647460938
+      Pitch: 0.21039927005767822
       Target Frame: odom
-      Yaw: 2.7535393238067627
+      Yaw: 3.118544816970825
     Saved: ~
 Window Geometry:
   Displays:
@@ -351,4 +348,4 @@ Window Geometry:
     collapsed: false
   Width: 2488
   X: 72
-  Y: 126
+  Y: 89
