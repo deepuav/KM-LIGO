@@ -184,22 +184,51 @@ std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector
     TransformPoints(initial_guess, source);
 
     Sophus::SE3d T_icp = Sophus::SE3d();
+    double convergence_error = 0.0;
+    int iteration_count = 0;
+    double inlier_ratio = 1.0;
+    
     for (int j = 0; j < max_num_iterations_; ++j) {
+        // 获取对应点和其他信息
         const auto &[src_planar, tgt_planar, normals, src_non_planar, tgt_non_planar, planar_count, non_planar_count] =
             voxel_map.GetCorrespondences(source, max_correspondence_distance);
-        double alpha = static_cast<double>(planar_count) / static_cast<double>(planar_count + non_planar_count);
+        
+        // 记录内点比例
+        size_t total_points = planar_count + non_planar_count;
+        inlier_ratio = static_cast<double>(total_points) / static_cast<double>(source.size());
+        
+        // 计算平面点比例
+        double alpha = (total_points > 0) ? 
+            static_cast<double>(planar_count) / static_cast<double>(total_points) : 0.5;
+        
+        // 构建和求解线性系统
         const auto &[JTJ, JTr] = BuildLinearSystem(src_planar, tgt_planar, normals, src_non_planar, tgt_non_planar, kernel, alpha);
         const Eigen::Vector6d dx = JTJ.ldlt().solve(-JTr);
         const Sophus::SE3d estimation = Sophus::SE3d::exp(dx);
+        
+        // 记录收敛误差
+        convergence_error = dx.norm();
+        iteration_count = j + 1;
+        
+        // 更新点云位置
         TransformPoints(estimation, source);
         T_icp = estimation * T_icp;
-        if (dx.norm() < convergence_criterion_ || j == max_num_iterations_ - 1) {
+        
+        // 检查收敛
+        if (convergence_error < convergence_criterion_ || j == max_num_iterations_ - 1) {
             VisualizeStatus(planar_count, non_planar_count, alpha);
             final_planar_points = src_planar;
             final_non_planar_points = src_non_planar;
             break;
         }
     }
+    
+    // 记录最终的配准质量指标
+    last_convergence_error_ = convergence_error;
+    last_iteration_count_ = iteration_count;
+    last_inlier_ratio_ = inlier_ratio;
+
+    // 返回配准结果，包括最终的变换和点云
     return std::make_tuple(T_icp * initial_guess, final_planar_points, final_non_planar_points);
 }
 

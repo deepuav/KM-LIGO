@@ -128,6 +128,12 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
     const auto model_deviation = initial_guess.inverse() * new_pose;
     adaptive_threshold_.UpdateModelDeviation(model_deviation);
     
+    // 更新配准质量指标
+    last_model_deviation_ = model_deviation;
+    last_convergence_error_ = model_deviation.log().norm();
+    last_iteration_count_ = registration_.GetLastIterationCount();
+    last_inlier_ratio_ = registration_.GetLastInlierRatio();
+    
     // 直接使用PX4位姿更新地图（MAVROS已转换为ENU坐标系）
     if (config_.use_px4_pose_for_map) {
         // 使用PX4的中间位姿更新地图
@@ -172,6 +178,13 @@ GenZICP::Vector3dVectorTuple GenZICP::RegisterFrame(const std::vector<Eigen::Vec
                                                           sigma / 3.0);
     const auto model_deviation = initial_guess.inverse() * new_pose;
     adaptive_threshold_.UpdateModelDeviation(model_deviation);
+    
+    // 更新配准质量指标
+    last_model_deviation_ = model_deviation;
+    last_convergence_error_ = model_deviation.log().norm();
+    last_iteration_count_ = registration_.GetLastIterationCount();
+    last_inlier_ratio_ = registration_.GetLastInlierRatio();
+    
     local_map_.Update(frame_downsample, new_pose);
     poses_.push_back(new_pose);
     return {planar_points, non_planar_points};

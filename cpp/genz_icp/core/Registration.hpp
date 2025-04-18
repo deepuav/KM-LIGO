@@ -63,9 +63,19 @@ public:
         double max_correspondence_distance,
         double kernel);
 
+    // 获取配准质量指标
+    double GetLastConvergenceError() const { return last_convergence_error_; }
+    int GetLastIterationCount() const { return last_iteration_count_; }
+    double GetLastInlierRatio() const { return last_inlier_ratio_; }
+
 private:
     int max_num_iterations_;
     double convergence_criterion_;
+    
+    // 配准质量指标
+    double last_convergence_error_ = 0.0;
+    int last_iteration_count_ = 0;
+    double last_inlier_ratio_ = 1.0;
 };
 
 }  // namespace genz_icp

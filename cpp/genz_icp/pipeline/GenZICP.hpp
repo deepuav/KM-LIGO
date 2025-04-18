@@ -99,6 +99,12 @@ public:
     // Extra C++ API to facilitate ROS debugging
     std::vector<Eigen::Vector3d> LocalMap() const { return local_map_.Pointcloud(); };
     std::vector<Sophus::SE3d> poses() const { return poses_; };
+    
+    // 获取配准质量指标的方法
+    double GetLastConvergenceError() const { return last_convergence_error_; }
+    int GetLastIterationCount() const { return last_iteration_count_; }
+    double GetLastInlierRatio() const { return last_inlier_ratio_; }
+    Sophus::SE3d GetLastModelDeviation() const { return last_model_deviation_; }
 
 private:
     // GenZ-ICP pipeline modules
@@ -107,6 +113,12 @@ private:
     Registration registration_;
     VoxelHashMap local_map_;
     AdaptiveThreshold adaptive_threshold_;
+    
+    // 配准质量指标
+    double last_convergence_error_ = 0.0;
+    int last_iteration_count_ = 0;
+    double last_inlier_ratio_ = 1.0;
+    Sophus::SE3d last_model_deviation_ = Sophus::SE3d();
 };
 
 }  // namespace genz_icp::pipeline

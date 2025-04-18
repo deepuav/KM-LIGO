@@ -15,7 +15,7 @@ max_num_iterations: 100
 convergence_criterion: 0.0001
 use_px4_pose_for_deskew: true
 use_multiple_poses_for_deskew: false
-use_px4_pose_for_init: false
+use_px4_pose_for_init: true
 use_px4_attitude_with_original_position_for_init: false
 use_px4_pose_for_map: false
-publish_odom_to_px4: false
+publish_odom_to_px4: true

@@ -1,0 +1,37 @@
+# GenZ ICP配置文件
+
+# 激光雷达和IMU配置
+base_frame: base_link
+odom_frame: odom
+lidar_frame: rslidar
+publish_odom_tf: true
+visualize: true
+
+# 使用PX4位姿的选项
+use_px4_pose_for_deskew: true
+use_multiple_poses_for_deskew: true
+use_px4_pose_for_init: true  # 允许使用PX4位姿初始化
+use_px4_attitude_with_original_position_for_init: false
+use_px4_pose_for_map: false
+publish_odom_to_px4: true
+
+# 配准质量评估参数
+min_inlier_ratio_threshold: 0.7     # 内点比例低于此值视为低质量
+max_convergence_error_threshold: 0.05  # 收敛误差高于此值视为低质量
+max_iteration_count_threshold: 100     # 迭代次数高于此值视为低质量
+
+# 点云处理参数
+max_range: 100.0
+min_range: 0.5
+deskew: true
+voxel_size: 0.25
+map_cleanup_radius: 100.0
+planarity_threshold: 0.1
+max_points_per_voxel: 1
+desired_num_voxelized_points: 2000
+
+# 配准参数
+initial_threshold: 2.0
+min_motion_th: 0.1
+max_num_iterations: 150
+convergence_criterion: 0.0001 
