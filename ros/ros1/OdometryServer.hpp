@@ -24,6 +24,7 @@
 
 // GenZ-ICP
 #include "genz_icp/pipeline/GenZICP.hpp"
+#include "genz_icp/core/Registration.hpp"
 
 // ROS
 #include <nav_msgs/Path.h>
@@ -39,6 +40,9 @@
 #include <geometry_msgs/PoseStamped.h>
 
 namespace genz_icp_ros {
+
+// 类型别名定义
+using PointCloud = std::vector<Eigen::Vector3d>;
 
 struct PX4Pose {
     Sophus::SE3d pose;
@@ -80,18 +84,11 @@ private:
     /// Interpolate pose between two poses
     Sophus::SE3d InterpolatePose(const PX4Pose &pose1, const PX4Pose &pose2, const ros::Time &target_time) const;
     
-    /// Interpolate velocity between two poses
-    Eigen::Vector3d InterpolateLinearVelocity(const PX4Pose &pose1, const PX4Pose &pose2, const ros::Time &target_time) const;
-    
-    /// Interpolate angular velocity between two poses
-    Eigen::Vector3d InterpolateAngularVelocity(const PX4Pose &pose1, const PX4Pose &pose2, const ros::Time &target_time) const;
-
-    /// Calculate pose and velocity covariance
+    /// Calculate pose covariance based on GenZ-ICP quality metrics and comparison with PX4 pose
     void CalculateCovariance(const Sophus::SE3d &genz_pose, const Sophus::SE3d &mid_pose, 
                              const Sophus::SE3d &last_mid_pose, double dt,
                              const ros::Time &frame_start_time,
-                             Eigen::Matrix<double, 6, 6> &pose_covariance,
-                             Eigen::Matrix<double, 6, 6> &velocity_covariance);
+                             Eigen::Matrix<double, 6, 6> &pose_covariance);
 
     /// Ros node stuff
     ros::NodeHandle nh_;
@@ -144,6 +141,18 @@ private:
 
     // 从点云消息中提取时间戳
     std::vector<double> GetTimestamps(const sensor_msgs::PointCloud2::ConstPtr &msg) const;
+    
+    // 检查点云帧的有效性
+    bool CheckFrameValidity(const PointCloud& frame);
+    
+    // 评估配准质量
+    bool EvaluateRegistrationQuality(const std::tuple<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>>& registration_result);
+    
+    // 配准质量相关标志和阈值
+    bool use_px4_pose_next_frame_ = false;
+    double min_inlier_ratio_threshold_ = 0.7;  // 内点比例阈值
+    double max_convergence_error_threshold_ = 0.05;  // 收敛误差阈值
+    int max_iteration_count_threshold_ = 100;  // 最大迭代次数阈值
 };
 
 }  // namespace genz_icp_ros

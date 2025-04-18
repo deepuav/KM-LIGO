@@ -67,6 +67,12 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     pnh_.param("use_px4_attitude_with_original_position_for_init", config_.use_px4_attitude_with_original_position_for_init, config_.use_px4_attitude_with_original_position_for_init);
     pnh_.param("use_px4_pose_for_map", config_.use_px4_pose_for_map, config_.use_px4_pose_for_map);
     pnh_.param("publish_odom_to_px4", config_.publish_odom_to_px4, config_.publish_odom_to_px4);
+    
+    // 配准质量评估参数
+    pnh_.param("min_inlier_ratio_threshold", min_inlier_ratio_threshold_, min_inlier_ratio_threshold_);
+    pnh_.param("max_convergence_error_threshold", max_convergence_error_threshold_, max_convergence_error_threshold_);
+    pnh_.param("max_iteration_count_threshold", max_iteration_count_threshold_, max_iteration_count_threshold_);
+    
     pnh_.param("voxel_size", config_.voxel_size, config_.max_range / 100.0);
     pnh_.param("map_cleanup_radius", config_.map_cleanup_radius, config_.max_range);
     pnh_.param("planarity_threshold", config_.planarity_threshold, config_.planarity_threshold);
@@ -179,26 +185,6 @@ Sophus::SE3d OdometryServer::InterpolatePose(const PX4Pose &pose1, const PX4Pose
     return Sophus::SE3d(q_interp, translation);
 }
 
-Eigen::Vector3d OdometryServer::InterpolateLinearVelocity(const PX4Pose &pose1, const PX4Pose &pose2,
-                                                        const ros::Time &target_time) const {
-    double total_duration = (pose2.timestamp - pose1.timestamp).toSec();
-    double target_duration = (target_time - pose1.timestamp).toSec();
-    double alpha = target_duration / total_duration;
-
-    // 线性插值速度
-    return (1 - alpha) * pose1.linear_velocity + alpha * pose2.linear_velocity;
-}
-
-Eigen::Vector3d OdometryServer::InterpolateAngularVelocity(const PX4Pose &pose1, const PX4Pose &pose2,
-                                                         const ros::Time &target_time) const {
-    double total_duration = (pose2.timestamp - pose1.timestamp).toSec();
-    double target_duration = (target_time - pose1.timestamp).toSec();
-    double alpha = target_duration / total_duration;
-
-    // 线性插值角速度
-    return (1 - alpha) * pose1.angular_velocity + alpha * pose2.angular_velocity;
-}
-
 std::vector<double> OdometryServer::GetTimestamps(const sensor_msgs::PointCloud2::ConstPtr &msg) const {
     // 直接使用utils中的GetTimestamps函数
     return utils::GetTimestamps(msg);
@@ -207,59 +193,58 @@ std::vector<double> OdometryServer::GetTimestamps(const sensor_msgs::PointCloud2
 void OdometryServer::CalculateCovariance(const Sophus::SE3d &genz_pose, const Sophus::SE3d &mid_pose, 
                                         const Sophus::SE3d &last_mid_pose, double dt,
                                         const ros::Time &frame_start_time,
-                                        Eigen::Matrix<double, 6, 6> &pose_covariance,
-                                        Eigen::Matrix<double, 6, 6> &velocity_covariance) {
-    // 计算位姿差异，作为位姿协方差的基础
+                                        Eigen::Matrix<double, 6, 6> &pose_covariance) {
+    // 初始化位姿协方差矩阵
+    pose_covariance = Eigen::Matrix<double, 6, 6>::Identity() * 1e-6;
+    
+    // 1. 只对姿态部分使用GenZ-ICP位姿与PX4位姿的比较
     Sophus::SE3d pose_diff = genz_pose.inverse() * mid_pose;
-    Eigen::Matrix<double, 6, 1> pose_diff_vec;
-    pose_diff_vec.block<3, 1>(0, 0) = pose_diff.translation();
-    pose_diff_vec.block<3, 1>(3, 0) = pose_diff.so3().log();
-
-    // 计算位姿协方差
-    pose_covariance = Eigen::Matrix<double, 6, 6>::Identity();
-    for (int i = 0; i < 6; ++i) {
-        pose_covariance(i, i) = pose_diff_vec(i) * pose_diff_vec(i);
-        if (pose_covariance(i, i) < 1e-6) {
-            pose_covariance(i, i) = 1e-6;  // 设置最小协方差
+    Eigen::Matrix<double, 3, 1> rotation_diff_vec = pose_diff.so3().log();
+    
+    // 只设置姿态协方差（索引3-5）- 基于与PX4姿态的比较
+    for (int i = 0; i < 3; ++i) {
+        pose_covariance(i+3, i+3) = rotation_diff_vec(i) * rotation_diff_vec(i);
+        if (pose_covariance(i+3, i+3) < 1e-6) {
+            pose_covariance(i+3, i+3) = 1e-6;  // 设置最小协方差
         }
     }
-
-    // 计算GenZ的速度
-    Sophus::SE3d genz_vel_pose;
-    if (odometry_.poses().size() >= 2) {
-        genz_vel_pose = odometry_.poses()[odometry_.poses().size() - 2].inverse() * odometry_.poses().back();
-    } else {
-        genz_vel_pose = Sophus::SE3d();
+    
+    // 2. 计算基于配准精度的协方差
+    // 获取配准质量指标
+    double convergence_error = odometry_.GetLastConvergenceError();
+    int iteration_count = odometry_.GetLastIterationCount();
+    double inlier_ratio = odometry_.GetLastInlierRatio();
+    
+    // 基于配准精度计算位置协方差（索引0-2）
+    double position_quality = convergence_error;  // 收敛误差越大，协方差越大
+    position_quality += std::max(0.0, 1.0 - inlier_ratio) * 0.1;  // 内点比例越低，协方差越大
+    position_quality += std::max(0.0, (double)(iteration_count - 50) / 50.0) * 0.05;  // 迭代次数越多，协方差越大
+    
+    // 确保最小值
+    position_quality = std::max(position_quality, 0.001);
+    
+    // 设置位置协方差（仅使用配准精度）
+    for (int i = 0; i < 3; ++i) {
+        pose_covariance(i, i) = position_quality;
     }
     
-    Eigen::Matrix<double, 6, 1> genz_vel;
-    genz_vel.block<3, 1>(0, 0) = genz_vel_pose.translation() / dt;
-    genz_vel.block<3, 1>(3, 0) = genz_vel_pose.so3().log() / dt;
-
-    // 使用与位姿插值相同的方法获取速度 - 使用帧起始时间
-    auto [pose_pair1, pose_pair2] = FindNearestPoses(frame_start_time);
+    // 3. 混合计算姿态协方差（基于PX4姿态比较和配准精度）
+    // 计算配准精度影响因子
+    double rotation_quality = convergence_error * 2.0;  // 姿态对收敛误差更敏感
+    rotation_quality += std::max(0.0, 1.0 - inlier_ratio) * 0.2;  // 内点比例越低，协方差越大
+    rotation_quality += std::max(0.0, (double)(iteration_count - 50) / 50.0) * 0.1;  // 迭代次数越多，协方差越大
     
-    // 创建PX4速度向量
-    Eigen::Matrix<double, 6, 1> px4_vel;
+    // 确保最小值
+    rotation_quality = std::max(rotation_quality, 0.002);
     
-    // 插值计算线速度和角速度
-    Eigen::Vector3d linear_vel = InterpolateLinearVelocity(pose_pair1, pose_pair2, frame_start_time);
-    Eigen::Vector3d angular_vel = InterpolateAngularVelocity(pose_pair1, pose_pair2, frame_start_time);
-    
-    px4_vel.block<3, 1>(0, 0) = linear_vel;
-    px4_vel.block<3, 1>(3, 0) = angular_vel;
-    
-    // 计算速度差异，作为速度协方差的基础
-    Eigen::Matrix<double, 6, 1> vel_diff = genz_vel - px4_vel;
-    
-    // 计算速度协方差
-    velocity_covariance = Eigen::Matrix<double, 6, 6>::Identity();
-    for (int i = 0; i < 6; ++i) {
-        velocity_covariance(i, i) = vel_diff(i) * vel_diff(i);
-        if (velocity_covariance(i, i) < 1e-6) {
-            velocity_covariance(i, i) = 1e-6;  // 设置最小协方差
-        }
+    // 混合姿态协方差（已经设置了基于PX4比较的部分）
+    // 添加配准精度影响
+    for (int i = 3; i < 6; ++i) {
+        pose_covariance(i, i) = pose_covariance(i, i) * 0.6 + rotation_quality * 0.4;
     }
+    
+    // 在Z轴旋转（偏航）上增加协方差，因为它通常更不确定
+    pose_covariance(5, 5) *= 1.5;
 }
 
 void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg) {
@@ -324,42 +309,64 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     }
     
     // 使用外部位姿进行去畸变和初始位姿估计
-    // 选择使用多个位姿的去畸变方法或原始方法
-    auto [registered_frame, registered_timestamps] = [&]() -> std::tuple<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> {
-        if (config_.use_px4_pose_for_deskew) {
-            if (config_.use_multiple_poses_for_deskew && px4_poses.size() >= 2) {
-                // 使用帧时间段内的所有位姿进行去畸变
-                ROS_DEBUG("使用多位姿去畸变，位姿数量: %zu", px4_poses.size());
-                const auto corrected_points = genz_icp::DeSkewScanWithPoses(points, timestamps, px4_poses, px4_pose_times);
-                return odometry_.RegisterFrame(corrected_points, {}, start_px4_pose, end_px4_pose, mid_px4_pose);
-            } else {
-                // 只使用起始和结束位姿进行去畸变
-                ROS_DEBUG("使用起始和结束位姿去畸变");
-                return odometry_.RegisterFrame(points, timestamps, start_px4_pose, end_px4_pose, mid_px4_pose);
-            }
+    // 这里决定是否使用px4位姿进行初始化
+    std::tuple<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> registration_result;
+    
+    if (config_.use_px4_pose_for_deskew) {
+        const auto corrected_points = config_.use_multiple_poses_for_deskew && px4_poses.size() >= 2 ?
+            genz_icp::DeSkewScanWithPoses(points, timestamps, px4_poses, px4_pose_times) : points;
+        
+        if (config_.use_px4_pose_for_init && use_px4_pose_next_frame_) {
+            // 只有当配置允许且上一帧配准质量较低时，才使用PX4位姿
+            ROS_INFO("使用PX4位姿作为初始值 (由于上一帧配准质量较低)");
+            registration_result = odometry_.RegisterFrame(corrected_points, {}, start_px4_pose, end_px4_pose, mid_px4_pose);
+        } else if (config_.use_px4_attitude_with_original_position_for_init && use_px4_pose_next_frame_) {
+            // 使用PX4的姿态和原始方法的位移合成初始猜测位姿
+            ROS_INFO("使用PX4姿态与预测位移合成位姿作为初始值 (由于上一帧配准质量较低)");
+            
+            // 获取GenZ-ICP预测的位姿
+            const auto prediction = odometry_.GetPredictionModel();
+            const auto last_pose = !odometry_.poses().empty() ? odometry_.poses().back() : Sophus::SE3d();
+            const auto original_guess = last_pose * prediction;
+            
+            // 提取PX4位姿的旋转部分
+            Eigen::Quaterniond px4_rotation(mid_px4_pose.unit_quaternion());
+            
+            // 提取原始猜测位姿的平移部分
+            Eigen::Vector3d original_position = original_guess.translation();
+            
+            // 合成新的初始猜测位姿（PX4姿态 + 原始位移）
+            Sophus::SE3d initial_guess = Sophus::SE3d(px4_rotation, original_position);
+            
+            // 使用自定义初始猜测位姿进行配准
+            registration_result = odometry_.RegisterFrame(corrected_points, {}, initial_guess, initial_guess, initial_guess);
         } else {
-            // 不使用PX4位姿进行去畸变，使用GenZ-ICP内部预测
-            ROS_DEBUG("使用GenZ-ICP内部预测去畸变");
-            return odometry_.RegisterFrame(points, timestamps);
+            // 使用GenZ-ICP原始的位姿预测方法
+            ROS_DEBUG("使用GenZ-ICP原始位姿预测方法进行配准");
+            registration_result = odometry_.RegisterFrame(corrected_points, {});
         }
-    }();
+    } else {
+        // 不使用PX4位姿进行去畸变，使用GenZ-ICP内部预测
+        ROS_DEBUG("使用GenZ-ICP内部预测去畸变");
+        registration_result = odometry_.RegisterFrame(points, timestamps);
+    }
+    
+    auto [registered_frame, registered_timestamps] = registration_result;
 
     // 获取GenZ-ICP计算的位姿
     const Sophus::SE3d genz_pose = odometry_.poses().back();
 
     // 计算协方差
-    Eigen::Matrix<double, 6, 6> pose_covariance, velocity_covariance;
+    Eigen::Matrix<double, 6, 6> pose_covariance;
     if (has_last_mid_pose_) {
         double dt = (frame_mid_time - last_mid_time_).toSec();
         if (dt > 0) {
-            CalculateCovariance(genz_pose, mid_px4_pose, last_mid_pose_, dt, frame_start_time, pose_covariance, velocity_covariance);
+            CalculateCovariance(genz_pose, mid_px4_pose, last_mid_pose_, dt, frame_start_time, pose_covariance);
         } else {
             pose_covariance = Eigen::Matrix<double, 6, 6>::Identity() * 1e-6;
-            velocity_covariance = Eigen::Matrix<double, 6, 6>::Identity() * 1e-6;
         }
     } else {
         pose_covariance = Eigen::Matrix<double, 6, 6>::Identity() * 1e-6;
-        velocity_covariance = Eigen::Matrix<double, 6, 6>::Identity() * 1e-6;
     }
 
     // 更新last_mid_pose
@@ -367,48 +374,38 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
     last_mid_time_ = frame_mid_time;
     has_last_mid_pose_ = true;
 
+    // 评估配准质量，设置下一帧是否使用px4位姿初始化
+    bool low_quality_registration = EvaluateRegistrationQuality(registration_result);
+    
     // 发布到/mavros/odometry/out话题
-    if (config_.publish_odom_to_px4) {
+    // 仅在配准质量良好时向MAVROS发布里程计
+    if (config_.publish_odom_to_px4 && !low_quality_registration) {
         nav_msgs::Odometry odometry_out_msg;
         odometry_out_msg.header.stamp = frame_mid_time;
         odometry_out_msg.header.frame_id = odom_frame_;
         odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
         odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
         
-        // 设置协方差
+        // 设置位姿协方差
         for (int i = 0; i < 6; ++i) {
             for (int j = 0; j < 6; ++j) {
                 odometry_out_msg.pose.covariance[i * 6 + j] = pose_covariance(i, j);
-                odometry_out_msg.twist.covariance[i * 6 + j] = velocity_covariance(i, j);
             }
         }
         
-        // 计算并设置速度
-        if (odometry_.poses().size() >= 2) {
-            // 使用与位姿插值相同的方法获取速度 - 使用帧起始时间
-            auto [pose_pair1, pose_pair2] = FindNearestPoses(frame_start_time);
-            
-            // 插值计算线速度和角速度
-            Eigen::Vector3d linear_vel = InterpolateLinearVelocity(pose_pair1, pose_pair2, frame_start_time);
-            Eigen::Vector3d angular_vel = InterpolateAngularVelocity(pose_pair1, pose_pair2, frame_start_time);
-            
-            // 设置速度信息
-            odometry_out_msg.twist.twist.linear.x = linear_vel.x();
-            odometry_out_msg.twist.twist.linear.y = linear_vel.y();
-            odometry_out_msg.twist.twist.linear.z = linear_vel.z();
-            odometry_out_msg.twist.twist.angular.x = angular_vel.x();
-            odometry_out_msg.twist.twist.angular.y = angular_vel.y();
-            odometry_out_msg.twist.twist.angular.z = angular_vel.z();
-        }
-        
         odometry_out_publisher_.publish(odometry_out_msg);
+    } else if (config_.publish_odom_to_px4 && low_quality_registration) {
+        ROS_WARN_THROTTLE(1.0, "[GenZ-ICP] 因配准质量低，暂停向MAVROS发布里程计数据");
     }
-
+    
     // 发布其他消息
     PublishOdometry(genz_pose, msg->header.stamp, cloud_frame_id);
     if (publish_debug_clouds_) {
         PublishClouds(msg->header.stamp, cloud_frame_id, registered_frame, registered_timestamps);
     }
+    
+    // 评估配准质量，设置下一帧是否使用px4位姿初始化
+    use_px4_pose_next_frame_ = low_quality_registration;
 }
 
 Sophus::SE3d OdometryServer::LookupTransform(const std::string &target_frame,
@@ -503,6 +500,90 @@ void OdometryServer::PublishClouds(const ros::Time &stamp,
     }
 }
 
+bool OdometryServer::EvaluateRegistrationQuality(
+    const std::tuple<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>>& registration_result) {
+  const double convergence_error = odometry_.GetLastConvergenceError();
+  const int iterations = odometry_.GetLastIterationCount();
+  const double inlier_ratio = odometry_.GetLastInlierRatio();
+  
+  // 使用评分机制而不是单一条件触发
+  int quality_score = 0;
+  
+  // 收敛误差评分（0-3分）
+  if (convergence_error > max_convergence_error_threshold_ * 1.5) {
+    quality_score += 3;  // 严重超出阈值
+  } else if (convergence_error > max_convergence_error_threshold_ * 1.2) {
+    quality_score += 2;  // 明显超出阈值
+  } else if (convergence_error > max_convergence_error_threshold_) {
+    quality_score += 1;  // 轻微超出阈值
+  }
+  
+  // 迭代次数评分（0-3分）
+  if (iterations >= max_iteration_count_threshold_ * 1.2) {
+    quality_score += 3;  // 严重超出阈值
+  } else if (iterations >= max_iteration_count_threshold_ * 1.1) {
+    quality_score += 2;  // 明显超出阈值
+  } else if (iterations >= max_iteration_count_threshold_) {
+    quality_score += 1;  // 轻微超出阈值
+  }
+  
+  // 内点比例评分（0-3分）
+  if (inlier_ratio < min_inlier_ratio_threshold_ * 0.7) {
+    quality_score += 3;  // 严重低于阈值
+  } else if (inlier_ratio < min_inlier_ratio_threshold_ * 0.85) {
+    quality_score += 2;  // 明显低于阈值
+  } else if (inlier_ratio < min_inlier_ratio_threshold_) {
+    quality_score += 1;  // 轻微低于阈值
+  }
+  
+  // 总分大于等于4分才认为是低质量配准
+  const bool low_quality_registration = quality_score >= 4;
+  
+  // 记录当前配准质量详情（仅在分数变化时记录）
+  static int last_quality_score = 0;
+  if (quality_score != last_quality_score) {
+    if (low_quality_registration) {
+      ROS_WARN_STREAM("[GenZ-ICP] 配准质量评分：" << quality_score << "/9 (>=4表示低质量), "
+                     << "收敛误差=" << convergence_error
+                     << ", 迭代次数=" << iterations 
+                     << ", 内点比例=" << inlier_ratio);
+    } else {
+      ROS_DEBUG_STREAM("[GenZ-ICP] 配准质量评分：" << quality_score << "/9 (<4表示高质量), "
+                      << "收敛误差=" << convergence_error
+                      << ", 迭代次数=" << iterations 
+                      << ", 内点比例=" << inlier_ratio);
+    }
+    last_quality_score = quality_score;
+  }
+  
+  // 如果当前注册质量很低但之前的注册质量是好的
+  if (low_quality_registration && !use_px4_pose_next_frame_) {
+    // 将标志位设置为true，下一帧将使用PX4位姿初始化
+    use_px4_pose_next_frame_ = true;
+    
+    ROS_WARN_STREAM("[GenZ-ICP] 配准质量下降，检测到低质量配准: "
+                   << "评分=" << quality_score << "/9, "
+                   << "收敛误差=" << convergence_error
+                   << ", 迭代次数=" << iterations 
+                   << ", 内点比例=" << inlier_ratio
+                   << "，将在下一帧使用PX4位姿初始化");
+  } 
+  // 如果当前注册质量良好但之前使用了PX4位姿初始化
+  else if (!low_quality_registration && use_px4_pose_next_frame_) {
+    // 配准质量已恢复，将标志位设置为false，恢复使用正常初始化方法
+    use_px4_pose_next_frame_ = false;
+    
+    ROS_INFO_STREAM("[GenZ-ICP] 配准质量已恢复: "
+                   << "评分=" << quality_score << "/9, "
+                   << "收敛误差=" << convergence_error
+                   << ", 迭代次数=" << iterations 
+                   << ", 内点比例=" << inlier_ratio
+                   << "，将恢复使用正常位姿初始化");
+  }
+  
+  return low_quality_registration;
+}
+
 }  // namespace genz_icp_ros
 
 int main(int argc, char **argv) {
@@ -516,3 +597,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+
