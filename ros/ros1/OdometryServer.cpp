@@ -384,7 +384,19 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
         odometry_out_msg.header.stamp = frame_mid_time;
         odometry_out_msg.header.frame_id = odom_frame_;
         odometry_out_msg.child_frame_id = base_frame_.empty() ? cloud_frame_id : base_frame_;
-        odometry_out_msg.pose.pose = tf2::sophusToPose(genz_pose);
+        
+        // 进行坐标系转换，修正90度旋转问题
+        Sophus::SE3d mavros_pose = genz_pose;
+        
+        // 如果发布到MAVROS，需要转换坐标系（ROS->NED转换）
+        // PX4使用的是NED（North-East-Down）坐标系，而ROS通常使用ENU（East-North-Up）
+        // 这需要绕Z轴旋转90度
+        Eigen::Matrix3d rot_z;
+        rot_z = Eigen::AngleAxisd(M_PI/2, Eigen::Vector3d::UnitZ());
+        mavros_pose.so3() = Sophus::SO3d(rot_z) * genz_pose.so3();
+        mavros_pose.translation() = rot_z * genz_pose.translation();
+        
+        odometry_out_msg.pose.pose = tf2::sophusToPose(mavros_pose);
         
         // 设置位姿协方差
         for (int i = 0; i < 6; ++i) {
