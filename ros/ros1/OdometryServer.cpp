@@ -69,9 +69,9 @@ OdometryServer::OdometryServer(const ros::NodeHandle &nh, const ros::NodeHandle 
     pnh_.param("publish_odom_to_px4", config_.publish_odom_to_px4, config_.publish_odom_to_px4);
     
     // 配准质量评估参数
-    pnh_.param("min_inlier_ratio_threshold", min_inlier_ratio_threshold_, min_inlier_ratio_threshold_);
-    pnh_.param("max_convergence_error_threshold", max_convergence_error_threshold_, max_convergence_error_threshold_);
-    pnh_.param("max_iteration_count_threshold", max_iteration_count_threshold_, max_iteration_count_threshold_);
+    pnh_.param("min_inlier_ratio_threshold", min_inlier_ratio_threshold_, 0.7);
+    pnh_.param("max_convergence_error_threshold", max_convergence_error_threshold_, 0.05);
+    pnh_.param("max_iteration_count_threshold", max_iteration_count_threshold_, 100);
     
     pnh_.param("voxel_size", config_.voxel_size, config_.max_range / 100.0);
     pnh_.param("map_cleanup_radius", config_.map_cleanup_radius, config_.max_range);

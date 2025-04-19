@@ -15,7 +15,14 @@ max_num_iterations: 100
 convergence_criterion: 0.0001
 use_px4_pose_for_deskew: true
 use_multiple_poses_for_deskew: false
-use_px4_pose_for_init: false
+use_px4_pose_for_init: true
 use_px4_attitude_with_original_position_for_init: false
 use_px4_pose_for_map: false
 publish_odom_to_px4: true
+
+# 配准质量评估参数 - 用于决定是否使用PX4位姿初始化和发布里程计
+# 三个维度的阈值：内点比例、收敛误差和迭代次数
+# 这些指标会结合计算评分，总分>=4时被认为是低质量配准
+min_inlier_ratio_threshold: 0.7    # 内点比例阈值（低于此值增加评分）
+max_convergence_error_threshold: 0.05    # 收敛误差阈值（高于此值增加评分）
+max_iteration_count_threshold: 100    # 迭代次数阈值（高于此值增加评分）
