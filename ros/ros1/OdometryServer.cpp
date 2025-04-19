@@ -123,7 +123,7 @@ void OdometryServer::PX4PoseCallback(const nav_msgs::Odometry::ConstPtr &msg) {
     
     // 直接使用MAVROS提供的ENU坐标系位姿，不需要转换
     Eigen::Vector3d translation(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
-    Eigen::Quaterniond rotation(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, 
+    Eigen::Quaterniond rotation(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
                                msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
     px4_pose.pose = Sophus::SE3d(rotation, translation);
     
@@ -131,10 +131,28 @@ void OdometryServer::PX4PoseCallback(const nav_msgs::Odometry::ConstPtr &msg) {
     px4_pose.linear_velocity = Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z);
     px4_pose.angular_velocity = Eigen::Vector3d(msg->twist.twist.angular.x, msg->twist.twist.angular.y, msg->twist.twist.angular.z);
 
-    // 发布PX4位姿用于调试
+    // 发布PX4位姿用于调试，进行坐标系转换使其与其他坐标系对齐
     geometry_msgs::PoseStamped pose_msg;
     pose_msg.header = msg->header;
-    pose_msg.pose = msg->pose.pose;
+    
+    // 应用相同的坐标系转换（绕Z轴旋转-90度，与MAVROS发布转换相反）
+    Eigen::Matrix3d rot_z;
+    rot_z = Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitZ());
+    Sophus::SE3d aligned_pose;
+    aligned_pose.so3() = Sophus::SO3d(rot_z) * px4_pose.pose.so3();
+    aligned_pose.translation() = rot_z * px4_pose.pose.translation();
+    
+    // 转换为geometry_msgs::Pose
+    pose_msg.pose.position.x = aligned_pose.translation().x();
+    pose_msg.pose.position.y = aligned_pose.translation().y();
+    pose_msg.pose.position.z = aligned_pose.translation().z();
+    
+    Eigen::Quaterniond q(aligned_pose.rotationMatrix());
+    pose_msg.pose.orientation.w = q.w();
+    pose_msg.pose.orientation.x = q.x();
+    pose_msg.pose.orientation.y = q.y();
+    pose_msg.pose.orientation.z = q.z();
+    
     px4_pose_publisher_.publish(pose_msg);
 
     // Add to queue and maintain size limit
