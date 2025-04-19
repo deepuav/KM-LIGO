@@ -326,47 +326,74 @@ void OdometryServer::RegisterFrame(const sensor_msgs::PointCloud2::ConstPtr &msg
         px4_pose_times.push_back(scan_duration);
     }
     
-    // 使用外部位姿进行去畸变和初始位姿估计
-    // 这里决定是否使用px4位姿进行初始化
+    // ===== 点云去畸变和初始位姿猜测策略 =====
+    // 初始位姿选择逻辑：
+    // 1. 如果配准质量良好：使用GenZ-ICP内部预测（最优）
+    // 2. 如果配准质量低下：
+    //    a. 优先使用PX4位姿（如果config_.use_px4_pose_for_init为true）
+    //    b. 或者使用PX4姿态+预测位移（如果config_.use_px4_attitude_with_original_position_for_init为true）
+    // 注：use_px4_pose_next_frame_标志表示上一帧配准质量低下
     std::tuple<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> registration_result;
     
+    // 首先决定是否进行点云去畸变处理
+    const std::vector<Eigen::Vector3d>* points_to_register = &points;
+    std::vector<Eigen::Vector3d> corrected_points;
+    
     if (config_.use_px4_pose_for_deskew) {
-        const auto corrected_points = config_.use_multiple_poses_for_deskew && px4_poses.size() >= 2 ?
-            genz_icp::DeSkewScanWithPoses(points, timestamps, px4_poses, px4_pose_times) : points;
-        
-        if (config_.use_px4_pose_for_init && use_px4_pose_next_frame_) {
-            // 只有当配置允许且上一帧配准质量较低时，才使用PX4位姿
-            ROS_INFO("使用PX4位姿作为初始值 (由于上一帧配准质量较低)");
-            registration_result = odometry_.RegisterFrame(corrected_points, {}, start_px4_pose, end_px4_pose, mid_px4_pose);
-        } else if (config_.use_px4_attitude_with_original_position_for_init && use_px4_pose_next_frame_) {
-            // 使用PX4的姿态和原始方法的位移合成初始猜测位姿
-            ROS_INFO("使用PX4姿态与预测位移合成位姿作为初始值 (由于上一帧配准质量较低)");
-            
-            // 获取GenZ-ICP预测的位姿
-            const auto prediction = odometry_.GetPredictionModel();
-            const auto last_pose = !odometry_.poses().empty() ? odometry_.poses().back() : Sophus::SE3d();
-            const auto original_guess = last_pose * prediction;
-            
-            // 提取PX4位姿的旋转部分
-            Eigen::Quaterniond px4_rotation(mid_px4_pose.unit_quaternion());
-            
-            // 提取原始猜测位姿的平移部分
-            Eigen::Vector3d original_position = original_guess.translation();
-            
-            // 合成新的初始猜测位姿（PX4姿态 + 原始位移）
-            Sophus::SE3d initial_guess = Sophus::SE3d(px4_rotation, original_position);
-            
-            // 使用自定义初始猜测位姿进行配准
-            registration_result = odometry_.RegisterFrame(corrected_points, {}, initial_guess, initial_guess, initial_guess);
+        // 使用PX4位姿进行点云去畸变
+        if (config_.use_multiple_poses_for_deskew && px4_poses.size() >= 2) {
+            // 使用多个位姿进行更精确的去畸变
+            corrected_points = genz_icp::DeSkewScanWithPoses(points, timestamps, px4_poses, px4_pose_times);
         } else {
-            // 使用GenZ-ICP原始的位姿预测方法
-            ROS_DEBUG("使用GenZ-ICP原始位姿预测方法进行配准");
-            registration_result = odometry_.RegisterFrame(corrected_points, {});
+            // 简单地使用原始点云
+            corrected_points = points;
         }
-    } else {
-        // 不使用PX4位姿进行去畸变，使用GenZ-ICP内部预测
-        ROS_DEBUG("使用GenZ-ICP内部预测去畸变");
-        registration_result = odometry_.RegisterFrame(points, timestamps);
+        points_to_register = &corrected_points;
+    }
+    
+    // 根据配准质量和配置选择初始位姿猜测策略
+    bool using_external_initial_pose = false;
+    if (config_.use_px4_pose_for_init && use_px4_pose_next_frame_) {
+        // 策略1：使用PX4位姿作为初始值（在配准质量低下时）
+        ROS_INFO("[GenZ-ICP] 使用PX4位姿作为初始值 (由于上一帧配准质量低)");
+        registration_result = odometry_.RegisterFrame(*points_to_register, {}, 
+                                                    start_px4_pose, end_px4_pose, mid_px4_pose);
+        using_external_initial_pose = true;
+    } 
+    else if (config_.use_px4_attitude_with_original_position_for_init && use_px4_pose_next_frame_) {
+        // 策略2：使用PX4姿态 + 预测位移作为初始值（在配准质量低下时）
+        ROS_INFO("[GenZ-ICP] 使用PX4姿态与预测位移合成位姿作为初始值 (由于上一帧配准质量低)");
+        
+        // 获取GenZ-ICP预测的位姿
+        const auto prediction = odometry_.GetPredictionModel();
+        const auto last_pose = !odometry_.poses().empty() ? odometry_.poses().back() : Sophus::SE3d();
+        const auto original_guess = last_pose * prediction;
+        
+        // 创建混合初始位姿：PX4的旋转 + 预测的平移
+        Sophus::SE3d initial_guess = Sophus::SE3d(
+            mid_px4_pose.unit_quaternion(),    // PX4姿态
+            original_guess.translation()        // 预测位移
+        );
+        
+        // 使用混合初始位姿进行配准
+        registration_result = odometry_.RegisterFrame(*points_to_register, {}, 
+                                                    initial_guess, initial_guess, initial_guess);
+        using_external_initial_pose = true;
+    } 
+    else {
+        // 策略3：使用GenZ-ICP内部位姿预测（默认/最优方法）
+        if (!use_px4_pose_next_frame_) {
+            ROS_DEBUG("[GenZ-ICP] 使用默认位姿预测方法（配准质量良好）");
+        } else {
+            ROS_DEBUG("[GenZ-ICP] 使用默认位姿预测方法（未启用外部位姿初始化）");
+        }
+        
+        // 如果需要考虑时间戳
+        if (config_.use_px4_pose_for_deskew) {
+            registration_result = odometry_.RegisterFrame(*points_to_register, {});
+        } else {
+            registration_result = odometry_.RegisterFrame(points, timestamps);
+        }
     }
     
     auto [registered_frame, registered_timestamps] = registration_result;
